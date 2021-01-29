@@ -50,7 +50,6 @@ namespace Penumbra.UI
             private const string TextDefaultGamePath     = "default";
             private const string LabelGamePathsEdit      = "Game Paths";
             private const string LabelGamePathsEditBox   = "##gamePathsEdit";
-            private const string TooltipGamePathText     = "Click to copy to clipboard.";
             private static readonly string TooltipGamePathsEdit = $"Enter all game paths to add or remove, separated by '{GamePathsSeparator}'.\nUse '{TextDefaultGamePath}' to add the original file path.";
             private static readonly string TooltipFilesTabEdit  = $"{TooltipFilesTab}\nRed Files are replaced in another group or a different option in this group, but not contained in the current option.";
 
@@ -465,11 +464,18 @@ namespace Penumbra.UI
                     ImGui.Indent(indent);
                     foreach (var gamePath in gamePaths)
                     {
-                        ImGui.Text(gamePath);
-                        if (ImGui.IsItemClicked())
-                            ImGui.SetClipboardText(gamePath);
-                        if (ImGui.IsItemHovered())
-                            ImGui.SetTooltip( TooltipGamePathText );
+                        string tmp = gamePath;
+                        if (ImGui.InputText($"##{gamePath}", ref tmp, 128, ImGuiInputTextFlags.EnterReturnsTrue))
+                        {
+                            if (tmp != gamePath)
+                            {
+                                gamePaths.Remove(gamePath);
+                                if (tmp.Length > 0)
+                                    gamePaths.Add(tmp);
+                                _selector.SaveCurrentMod();
+                                _selector.ReloadCurrentMod();
+                            }
+                        }
                     }
                     ImGui.Unindent(indent);
                 }
