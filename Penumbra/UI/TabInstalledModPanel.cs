@@ -3,6 +3,9 @@ using Dalamud.Plugin;
 using System;
 using System.Numerics;
 using System.Diagnostics;
+using System.Linq;
+using System.Collections.Generic;
+using System.IO;
 using Penumbra.Models;
 
 namespace Penumbra.UI
@@ -226,7 +229,7 @@ namespace Penumbra.UI
             {
                 if( ImGui.Button( ButtonDeduplicate ) )
                 {
-                    new Deduplicator(Mod.Mod.ModBasePath, Meta).Run();
+                    Deduplicator.Run(Mod.Mod.ModBasePath, Meta);
                     _selector.SaveCurrentMod();
                     Mod.Mod.RefreshModFiles();
                     _base._plugin.ModManager.CalculateEffectiveFileList();
@@ -234,6 +237,18 @@ namespace Penumbra.UI
                 }
                 if( ImGui.IsItemHovered() )
                     ImGui.SetTooltip( TooltipDeduplicate );
+            }
+
+            private void DrawNormalizeButton()
+            {
+                if (ImGui.Button("Normalize"))
+                {
+                    Deduplicator.RemoveUnneccessaryEntries(Mod.Mod.ModBasePath, Meta);
+                    _selector.SaveCurrentMod();
+                    Mod.Mod.RefreshModFiles();
+                    _base._plugin.ModManager.CalculateEffectiveFileList();
+                    _base._menu._effectiveTab.RebuildFileList(_base._plugin.Configuration.ShowAdvanced);
+                }
             }
 
             private void DrawEditLine()
@@ -245,6 +260,8 @@ namespace Penumbra.UI
                 DrawReloadJsonButton();
                 ImGui.SameLine();
                 DrawDeduplicateButton();
+                ImGui.SameLine();
+                DrawNormalizeButton();
             }
             #endregion
 
