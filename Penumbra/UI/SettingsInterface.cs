@@ -35,6 +35,7 @@ namespace Penumbra.UI
 
         private void ReloadMods()
         {
+            _menu._installedTab._selector.ResetModNamesLower();
             _menu._installedTab._selector.ClearSelection();
             // create the directory if it doesn't exist
             Directory.CreateDirectory( _plugin.Configuration.CurrentCollection );
