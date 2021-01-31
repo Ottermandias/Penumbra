@@ -14,6 +14,9 @@ namespace Penumbra
 
         private static async void Redraw(Actor actor)
         {
+            if (actor == null)
+                return;
+
             var ptr = actor.Address;
             var renderModePtr = ptr + RenderModeOffset;
             var renderStatus = Marshal.ReadInt32(renderModePtr);
@@ -35,10 +38,33 @@ namespace Penumbra
             
         }
 
-        public static void RedrawSpecific(ActorTable actors, string name)
+        public static void RedrawSpecific(ActorTable actors, Targets targets, string name)
         {
             if (name?.Length == 0)
+            {
                 RedrawAll(actors);
+                return;
+            }
+
+            switch(name)
+            {
+                case "<me>":
+                case "self":
+                    Redraw(actors[0]);
+                    return;
+                case "<t>":
+                case "target":
+                    Redraw(targets.CurrentTarget);
+                    return;
+                case "<f>":
+                case "focus":
+                    Redraw(targets.FocusTarget);
+                    return;
+                case "<mo>":
+                case "mouseover":
+                    Redraw(targets.MouseOverTarget);
+                    return;
+            }
 
             foreach (var actor in actors)
                 if (actor.Name == name)

@@ -123,7 +123,7 @@ namespace Penumbra
                     case "redraw":
                     {
                         if (args.Length > 1)
-                            RefreshActors.RedrawSpecific(PluginInterface.ClientState.Actors, string.Join(" ", args.Skip(1)));
+                            RefreshActors.RedrawSpecific(PluginInterface.ClientState.Actors, PluginInterface.ClientState.Targets, string.Join(" ", args.Skip(1)));
                         else
                             RefreshActors.RedrawAll(PluginInterface.ClientState.Actors);
                         break;
