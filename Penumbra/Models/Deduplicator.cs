@@ -130,26 +130,31 @@ namespace Penumbra.Models
             var relName1 = f1.FullName.Substring(_baseDirLength).TrimStart('\\');
             var relName2 = f2.FullName.Substring(_baseDirLength).TrimStart('\\');
 
-            var inOption = false;
+            var inOption1 = false;
+            var inOption2 = false;
             foreach (var group in _mod.Groups.Select( g => g.Value.Options))
             {
                 foreach (var option in group)
                 {
+                    if (option.OptionFiles.ContainsKey(relName1))
+                        inOption1 = true;
                     if (option.OptionFiles.TryGetValue(relName2, out var values))
                     {
-                        inOption = true;
+                        inOption2 = true;
                         foreach (var value in values)
                             option.AddFile(relName1, value);
                         option.OptionFiles.Remove(relName2);
                     }
                 }
             }
-            if (!inOption)
+
+            if (!inOption1 || !inOption2)
             {
                 var option = FindOrCreateDuplicates(_mod);
-                option.AddFile(relName1, relName2.Replace('\\', '/'));
-                option.AddFile(relName1, relName1.Replace('\\', '/'));
+                if (!inOption2) option.AddFile(relName1, relName2.Replace('\\', '/'));
+                if (!inOption1) option.AddFile(relName1, relName1.Replace('\\', '/'));
             }
+           
             PluginLog.Information($"File {relName1} and {relName2} are identical. Deleting the second.");
             f2.Delete();
         }
@@ -209,10 +214,19 @@ namespace Penumbra.Models
             }
         }
 
+        private static bool FileIsInAnyGroup(ModMeta meta, string relPath)
+        {
+            foreach (var group in meta.Groups.Values)
+                foreach (var option in group.Options)
+                    if (option.OptionFiles.ContainsKey(relPath))
+                        return true;
+            return false;
+        }
+
         public static bool MoveFile(ModMeta meta, string basePath, string oldRelPath, string newRelPath)
         {
             if (oldRelPath == newRelPath)
-                return false;
+                return true;
 
             try
             {
@@ -267,17 +281,21 @@ namespace Penumbra.Models
                 {
                     if (newPath.TryGetValue(path, out var usedGamePath))
                     {
+                        var p = gamePath.Replace('/', '\\');
                         var required = FindOrCreateDuplicates(meta);
                         required.AddFile(usedGamePath, gamePath);
-                        required.AddFile(usedGamePath, usedGamePath);
-                        RemoveFromGroups(meta, usedGamePath, gamePath, 1, true);
+                        required.AddFile(usedGamePath, p);
+                        RemoveFromGroups(meta, p, gamePath, 1, true);
                     }
                     else
                     {
-                        if (MoveFile(meta, basePath, path, gamePath))
+                        var p = gamePath.Replace('/', '\\');
+                        if (MoveFile(meta, basePath, path, p))
                         {
                             newPath[path] = gamePath;
-                            RemoveFromGroups(meta, gamePath, gamePath, 1, true);
+                            if (FileIsInAnyGroup(meta, p))
+                                FindOrCreateDuplicates(meta).AddFile(p, gamePath);
+                            RemoveFromGroups(meta, p, gamePath, 1, true);
                         }
                     }
                 }
