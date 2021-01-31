@@ -42,7 +42,7 @@ namespace Penumbra.UI
             private const string ButtonRemoveFromGroup   = "Remove from Group";
             private const string LabelGroupSelect        = "##groupSelect";
             private const string LabelOptionSelect       = "##optionSelect";
-            private const string TextNoOptionAvailable   = "[No Option Available]";
+            private const string TextNoOptionAvailable   = "[Not Available]";
             private const string LabelConfigurationTab   = "Configuration";
             private const string LabelNewSingleGroup     = "New Single Group";
             private const string LabelNewSingleGroupEdit = "##newSingleGroup";
@@ -377,12 +377,13 @@ namespace Penumbra.UI
                     HandleSelectedFilesButton(true);
             }
 
-            private void DrawEditGroupSelector()
+            private bool DrawEditGroupSelector()
             {
                 ImGui.SetNextItemWidth( OptionSelectionWidth );
                 if (Meta.Groups.Count == 0)
                 {
                     ImGui.Combo( LabelGroupSelect, ref _selectedGroupIndex, TextNoOptionAvailable, 1);
+                    return false;
                 }
                 else
                 {
@@ -392,21 +393,23 @@ namespace Penumbra.UI
                         SelectOption(0);
                     }
                 }
+                return true;
             }
 
-            private void DrawEditOptionSelector()
+            private bool DrawEditOptionSelector()
             {
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth( OptionSelectionWidth );
-                if (_selectedGroup?.Options.Count == 0)
+                if ((_selectedGroup?.Options.Count ?? 0) == 0)
                 {
                     ImGui.Combo( LabelOptionSelect, ref _selectedOptionIndex, TextNoOptionAvailable, 1);
-                    return;
+                    return false;
                 }
 
                 var group = (InstallerInfo) _selectedGroup;
                 if (ImGui.Combo( LabelOptionSelect, ref _selectedOptionIndex, group.Options.Select(O => O.OptionName).ToArray(), group.Options.Count))
                     SelectOption();
+                return true;
             }
             
             private void DrawGamePathInput()
@@ -426,9 +429,12 @@ namespace Penumbra.UI
                 if (_selectedOption == null)
                     SelectOption();
 
-                DrawEditGroupSelector();
+                if ( !DrawEditGroupSelector() )
+                    return;
+
                 ImGui.SameLine();
-                DrawEditOptionSelector();
+                if (!DrawEditOptionSelector())
+                    return;
                 ImGui.SameLine();
                 DrawAddToGroupButton();
                 ImGui.SameLine();
