@@ -3,6 +3,7 @@ using ImGuiNET;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.IO;
 
 namespace Penumbra.UI
 {
@@ -73,7 +74,7 @@ namespace Penumbra.UI
             private float?                        _fileSwapOffset       = null;
             private string                        _currentGamePaths     = "";
 
-            private (string name, bool selected, uint color, string relName)[] _fullFilenameList = null;
+            private (FileInfo name, bool selected, uint color, RelPath relName)[] _fullFilenameList = null;
 
             public void SelectGroup(int idx)
             {
@@ -266,15 +267,14 @@ namespace Penumbra.UI
             {
                 if (_fullFilenameList == null)
                 {
-                    var len = Mod.Mod.ModBasePath.FullName.Length;
-                    _fullFilenameList = Mod.Mod.ModFiles.Select( F => (F.FullName, false, ColorGreen, "") ).ToArray();
+                    _fullFilenameList = Mod.Mod.ModFiles.Select( F => (F, false, ColorGreen
+                    , new RelPath(F, Mod.Mod.ModBasePath) )).ToArray();
 
                     if(Meta.Groups?.Count == 0)
                         return;
 
                     for (var i = 0; i < Mod.Mod.ModFiles.Count; ++i)
                     {
-                        _fullFilenameList[i].relName = _fullFilenameList[i].name.Substring(len).TrimStart('\\');
                         foreach (var Group in Meta.Groups.Values)
                         {
                             var inAll = true;
@@ -306,7 +306,7 @@ namespace Penumbra.UI
                         foreach(var file in _fullFilenameList)
                         {
                             ImGui.PushStyleColor(ImGuiCol.Text, file.color);
-                            ImGui.Selectable(file.name);
+                            ImGui.Selectable(file.name.FullName);
                             ImGui.PopStyleColor();
                         }
                         ImGui.ListBoxFooter();
@@ -323,8 +323,8 @@ namespace Penumbra.UI
                     return;
                 var option = (Option) _selectedOption;
 
-                var gamePaths = _currentGamePaths.Split(';');
-                if (gamePaths.Length == 0 || gamePaths[0].Length == 0)
+                var gamePaths = _currentGamePaths.Split(';').Select( P => new GamePath( P ) ).ToArray();
+                if (gamePaths.Length == 0 || ((string) gamePaths[0]).Length == 0)
                     return;
 
                 int? defaultIndex = null;
@@ -344,21 +344,21 @@ namespace Penumbra.UI
                     if (!_fullFilenameList[i].selected)
                         continue;
 
-                    var fileName = _fullFilenameList[i].relName;
+                    var relName = _fullFilenameList[i].relName;
                     if (defaultIndex != null)
-                        gamePaths[(int)defaultIndex] = fileName.Replace('\\', '/');
+                        gamePaths[(int)defaultIndex] = new(relName);
 
-                    if (remove && option.OptionFiles.TryGetValue(fileName, out var setPaths))
+                    if (remove && option.OptionFiles.TryGetValue(relName, out var setPaths))
                     {
                         if (setPaths.RemoveWhere( P => gamePaths.Contains(P)) > 0)
                             changed = true;
-                        if (setPaths.Count == 0 && option.OptionFiles.Remove(fileName))
+                        if (setPaths.Count == 0 && option.OptionFiles.Remove(relName))
                             changed = true;
                     }
                     else
                     {
                         foreach(var gamePath in gamePaths)
-                            changed |= option.AddFile(fileName, gamePath);
+                            changed |= option.AddFile(relName, gamePath);
                     }
                 }
                 if (changed)
@@ -451,7 +451,7 @@ namespace Penumbra.UI
                     if (loc == colorNormal)
                         loc = colorReplace;
                     ImGui.PushStyleColor(ImGuiCol.Text, loc);
-                    ImGui.Selectable( _fullFilenameList[idx].name, ref _fullFilenameList[idx].selected );
+                    ImGui.Selectable( _fullFilenameList[idx].name.FullName, ref _fullFilenameList[idx].selected );
                     ImGui.PopStyleColor();
                 }
 
@@ -463,12 +463,14 @@ namespace Penumbra.UI
                 }
 
                 var fileName = _fullFilenameList[idx].relName;
-                if (((Option) _selectedOption).OptionFiles.TryGetValue(fileName, out var gamePaths))
+                var optionFiles = ((Option) _selectedOption).OptionFiles;
+                if (optionFiles.TryGetValue(fileName, out var gamePaths))
                 {
                     Selectable(0, ColorGreen);
 
                     ImGui.Indent(indent);
-                    foreach (var gamePath in gamePaths)
+                    var tmpPaths = gamePaths.ToArray();
+                    foreach (var gamePath in tmpPaths)
                     {
                         string tmp = gamePath;
                         if (ImGui.InputText($"##{fileName}_{gamePath}", ref tmp, 128, ImGuiInputTextFlags.EnterReturnsTrue))
@@ -477,7 +479,9 @@ namespace Penumbra.UI
                             {
                                 gamePaths.Remove(gamePath);
                                 if (tmp.Length > 0)
-                                    gamePaths.Add(tmp);
+                                    gamePaths.Add(new(tmp));
+                                else if (gamePaths.Count == 0)
+                                    optionFiles.Remove(fileName);
                                 _selector.SaveCurrentMod();
                                 _selector.ReloadCurrentMod();
                             }

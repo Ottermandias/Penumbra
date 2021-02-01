@@ -63,8 +63,6 @@ namespace Penumbra.Importer
                 default:
                     throw new ArgumentException( $"Unrecognized modpack format: {modPackFile.Extension}", nameof(modPackFile) );
             }
-
-            State = ImporterState.Done;
         }
 
         private void WriteZipEntryToTempFile( Stream s )
@@ -232,7 +230,7 @@ namespace Penumbra.Importer
             );
         }
 
-        private void AddMeta( DirectoryInfo baseFolder, DirectoryInfo groupFolder,ModGroup group, ModMeta meta)
+        private void AddMeta( DirectoryInfo baseFolder, DirectoryInfo groupFolder, ModGroup group, ModMeta meta)
         {
             var Inf = new InstallerInfo
             {
@@ -245,15 +243,15 @@ namespace Penumbra.Importer
                 var optio = new Option
                 {
                     OptionName = opt.Name,
-                    OptionDesc = String.IsNullOrEmpty(opt.Description) ? "" : opt.Description,
-                    OptionFiles = new Dictionary<string, HashSet<string>>()
+                    OptionDesc = string.IsNullOrEmpty(opt.Description) ? "" : opt.Description,
+                    OptionFiles = new()
                 };
                 var optDir = new DirectoryInfo(Path.Combine( groupFolder.FullName, opt.Name));
                 if (optDir.Exists)
                 {
                     foreach ( var file in optDir.EnumerateFiles("*.*", SearchOption.AllDirectories) ) 
                     {
-                        optio.AddFile(file.FullName.Substring(baseFolder.FullName.Length).TrimStart('\\'), file.FullName.Substring(optDir.FullName.Length).TrimStart('\\').Replace('\\','/'));
+                        optio.AddFile(new RelPath(file, baseFolder), new GamePath(file, optDir));
                     }
                 }
                 Inf.Options.Add( optio );

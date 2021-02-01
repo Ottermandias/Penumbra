@@ -14,8 +14,6 @@ namespace Penumbra.Models
         private const string Required   = "Required";
 
         private readonly DirectoryInfo _baseDir;
-        private readonly string        _basePath;
-        private readonly int           _baseDirLength;
         private readonly ModMeta       _mod;
         private SHA256                 _hasher = null;
 
@@ -31,8 +29,6 @@ namespace Penumbra.Models
         private Deduplicator(DirectoryInfo baseDir, ModMeta mod)
         {
             this._baseDir       = baseDir;
-            this._basePath      = baseDir.FullName;
-            this._baseDirLength = _basePath.Length;
             this._mod           = mod;
             filesBySize        = new();
 
@@ -127,8 +123,8 @@ namespace Penumbra.Models
 
         private void ReplaceFile(FileInfo f1, FileInfo f2)
         {
-            var relName1 = f1.FullName.Substring(_baseDirLength).TrimStart('\\');
-            var relName2 = f2.FullName.Substring(_baseDirLength).TrimStart('\\');
+            RelPath relPath1 = new(f1, _baseDir);
+            RelPath relPath2 = new(f2, _baseDir);
 
             var inOption1 = false;
             var inOption2 = false;
@@ -136,14 +132,14 @@ namespace Penumbra.Models
             {
                 foreach (var option in group)
                 {
-                    if (option.OptionFiles.ContainsKey(relName1))
+                    if (option.OptionFiles.ContainsKey(relPath1))
                         inOption1 = true;
-                    if (option.OptionFiles.TryGetValue(relName2, out var values))
+                    if (option.OptionFiles.TryGetValue(relPath2, out var values))
                     {
                         inOption2 = true;
                         foreach (var value in values)
-                            option.AddFile(relName1, value);
-                        option.OptionFiles.Remove(relName2);
+                            option.AddFile(relPath1, value);
+                        option.OptionFiles.Remove(relPath2);
                     }
                 }
             }
@@ -151,11 +147,11 @@ namespace Penumbra.Models
             if (!inOption1 || !inOption2)
             {
                 var option = FindOrCreateDuplicates(_mod);
-                if (!inOption2) option.AddFile(relName1, relName2.Replace('\\', '/'));
-                if (!inOption1) option.AddFile(relName1, relName1.Replace('\\', '/'));
+                if (!inOption1) option.AddFile(relPath1, new GamePath(relPath1));
+                if (!inOption2) option.AddFile(relPath1, new GamePath(relPath2));
             }
            
-            PluginLog.Information($"File {relName1} and {relName2} are identical. Deleting the second.");
+            PluginLog.Information($"File {relPath1} and {relPath2} are identical. Deleting the second.");
             f2.Delete();
         }
 
@@ -190,7 +186,7 @@ namespace Penumbra.Models
 
 
         // singleOrMulti: 0 - Both, 1 - Single - else Multi
-        public static void RemoveFromGroups(ModMeta meta, string relPath, string gamePath, int singleOrMulti = 0, bool skipDuplicates = true)
+        public static void RemoveFromGroups(ModMeta meta, RelPath relPath, GamePath gamePath, int singleOrMulti = 0, bool skipDuplicates = true)
         {
             if (meta.Groups == null)
                 return;
@@ -214,7 +210,7 @@ namespace Penumbra.Models
             }
         }
 
-        private static bool FileIsInAnyGroup(ModMeta meta, string relPath)
+        private static bool FileIsInAnyGroup(ModMeta meta, RelPath relPath)
         {
             foreach (var group in meta.Groups.Values)
                 foreach (var option in group.Options)
@@ -223,16 +219,16 @@ namespace Penumbra.Models
             return false;
         }
 
-        public static bool MoveFile(ModMeta meta, string basePath, string oldRelPath, string newRelPath)
+        public static bool MoveFile(ModMeta meta, DirectoryInfo baseDir, RelPath oldRelPath, RelPath newRelPath)
         {
-            if (oldRelPath == newRelPath)
+            if ((string) oldRelPath == newRelPath )
                 return true;
 
             try
             {
-                var newFullPath = Path.Combine(basePath, newRelPath);
+                var newFullPath = Path.Combine(baseDir.FullName, newRelPath);
                 new FileInfo(newFullPath).Directory.Create();
-                File.Move(Path.Combine(basePath, oldRelPath), Path.Combine(basePath, newRelPath));
+                File.Move(Path.Combine(baseDir.FullName, oldRelPath), Path.Combine(baseDir.FullName, newRelPath));
             }
             catch (Exception)
             {
@@ -259,14 +255,13 @@ namespace Penumbra.Models
         // If they are, it moves those files to the root folder and removes them from the groups (and puts them to duplicates, if necessary).
         public static void RemoveUnneccessaryEntries(DirectoryInfo baseDir, ModMeta meta)
         {
-            var basePath = baseDir.FullName;
             foreach (var group in meta.Groups.Values.Where( G => G.SelectionType == SelectType.Single && G.GroupName != Duplicates ))
             {
                 var firstOption = true;
-                HashSet<(string, string)> groupList = new();
+                HashSet<(RelPath, GamePath)> groupList = new();
                 foreach (var option in group.Options)
                 {
-                    HashSet<(string, string)> optionList = new();
+                    HashSet<(RelPath, GamePath)> optionList = new();
                     foreach (var (file, gamePaths) in option.OptionFiles.Select( P => (P.Key, P.Value)))
                         optionList.UnionWith(gamePaths.Select(p => (file, p)));
 
@@ -276,21 +271,21 @@ namespace Penumbra.Models
                         groupList.IntersectWith(optionList);
                     firstOption = false;
                 }
-                var newPath = new Dictionary<string, string>();
+                var newPath = new Dictionary<RelPath, GamePath>();
                 foreach (var (path, gamePath) in groupList)
                 {
+                    RelPath p = new(gamePath);
                     if (newPath.TryGetValue(path, out var usedGamePath))
                     {
-                        var p = gamePath.Replace('/', '\\');
                         var required = FindOrCreateDuplicates(meta);
-                        required.AddFile(usedGamePath, gamePath);
-                        required.AddFile(usedGamePath, p);
+                        RelPath usedRelPath = new(usedGamePath);
+                        required.AddFile(usedRelPath, gamePath);
+                        required.AddFile(usedRelPath, usedGamePath);
                         RemoveFromGroups(meta, p, gamePath, 1, true);
                     }
                     else
                     {
-                        var p = gamePath.Replace('/', '\\');
-                        if (MoveFile(meta, basePath, path, p))
+                        if (MoveFile(meta, baseDir, path, p))
                         {
                             newPath[path] = gamePath;
                             if (FileIsInAnyGroup(meta, p))

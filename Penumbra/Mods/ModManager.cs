@@ -9,8 +9,8 @@ namespace Penumbra.Mods
     public class ModManager : IDisposable
     {
         private readonly Plugin _plugin;
-        public readonly Dictionary< string, FileInfo > ResolvedFiles = new();
-        public readonly Dictionary< string, string > SwappedFiles = new();
+        public readonly Dictionary<GamePath, FileInfo > ResolvedFiles = new();
+        public readonly Dictionary<GamePath, GamePath > SwappedFiles = new();
 
         public ModCollection Mods { get; set; }
 
@@ -109,14 +109,11 @@ namespace Penumbra.Mods
             ResolvedFiles.Clear();
             SwappedFiles.Clear();
 
-            var registeredFiles = new Dictionary< string, string >();
+            var registeredFiles = new Dictionary<GamePath, string >();
 
             foreach( var (mod, settings) in Mods.GetOrderedAndEnabledModListWithSettings( _plugin.Configuration.InvertModListOrder ) )
             {
                 mod.FileConflicts?.Clear();
-
-                // fixup path
-                var baseDir = mod.ModBasePath.FullName;
 
                 if(settings.Conf == null) {
                     settings.Conf = new();
@@ -125,17 +122,18 @@ namespace Penumbra.Mods
 
                 foreach( var file in mod.ModFiles )
                 {
-                    var relativeFilePath = file.FullName.Substring( baseDir.Length ).TrimStart( '\\' );
+                    RelPath relativeFilePath = new(file, mod.ModBasePath);
                     
-                    bool doNotAdd = false;
-                    void AddFiles(HashSet<string> gamePaths)
+                    var doNotAdd = false;
+                    void AddFiles(HashSet<GamePath> gamePaths)
                     {
                         doNotAdd = true;
                         foreach (var gamePath in gamePaths)
                         {
-                            if( !ResolvedFiles.ContainsKey( gamePath ) )                            {
-                                ResolvedFiles[ gamePath.ToLowerInvariant() ] = file;
-                                registeredFiles[ gamePath ] = mod.Meta.Name;
+                            if( !ResolvedFiles.ContainsKey( gamePath ) )
+                            {
+                                ResolvedFiles[gamePath] = file;
+                                registeredFiles[gamePath] = mod.Meta.Name;
                             }
                             else if( registeredFiles.TryGetValue( gamePath, out var modName ) )
                             {
@@ -144,8 +142,8 @@ namespace Penumbra.Mods
                         }
                     }
 
-                    HashSet<string> paths;
-                    foreach (var group in mod.Meta.Groups.Select( G => G.Value))
+                    HashSet<GamePath> paths;
+                    foreach (var group in mod.Meta.Groups.Values)
                     {
                         if (!settings.Conf.TryGetValue(group.GroupName, out var setting) 
                             || (group.SelectionType == SelectType.Single && settings.Conf[group.GroupName] >= group.Options.Count))
@@ -195,16 +193,15 @@ namespace Penumbra.Mods
                         }
                     }
                     if (!doNotAdd)
-                        AddFiles(new() { relativeFilePath.Replace( '\\', '/' ) });
+                        AddFiles(new() { new GamePath(relativeFilePath) });
                 }
-
 
                 foreach( var swap in mod.Meta.FileSwaps )
                 {
                     // just assume people put not fucked paths in here lol
                     if( !SwappedFiles.ContainsKey( swap.Value ) )
                     {
-                        SwappedFiles[ swap.Key.ToLowerInvariant() ] = swap.Value;
+                        SwappedFiles[ swap.Key ] = swap.Value;
                         registeredFiles[ swap.Key ] = mod.Meta.Name;
                     }
                     else if( registeredFiles.TryGetValue( swap.Key, out var modName ) )
@@ -228,7 +225,7 @@ namespace Penumbra.Mods
             DiscoverMods();
         }
 
-        public FileInfo GetCandidateForGameFile( string gameResourcePath )
+        public FileInfo GetCandidateForGameFile( GamePath gameResourcePath )
         {
             var val = ResolvedFiles.TryGetValue( gameResourcePath, out var candidate );
             if( !val )
@@ -244,15 +241,13 @@ namespace Penumbra.Mods
             return candidate;
         }
 
-        public string GetSwappedFilePath( string gameResourcePath )
+        public GamePath GetSwappedFilePath( GamePath gameResourcePath )
         {
-            return SwappedFiles.TryGetValue( gameResourcePath, out var swappedPath ) ? swappedPath : null;
+            return SwappedFiles.TryGetValue( gameResourcePath, out var swappedPath ) ? swappedPath : GamePath.GenerateUnchecked(null);
         }
 
-        public string ResolveSwappedOrReplacementFilePath( string gameResourcePath )
+        public string ResolveSwappedOrReplacementFilePath( GamePath gameResourcePath )
         {
-            gameResourcePath = gameResourcePath.ToLowerInvariant();
-
             return GetCandidateForGameFile( gameResourcePath )?.FullName ?? GetSwappedFilePath( gameResourcePath );
         }
 

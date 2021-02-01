@@ -12,10 +12,10 @@ namespace Penumbra.Models
         public string OptionName;
         public string OptionDesc;
 
-        [JsonProperty(ItemConverterType = typeof(SingleOrArrayConverter<string>))]
-        public Dictionary<string, HashSet<string>> OptionFiles;
+        [JsonProperty(ItemConverterType = typeof(SingleOrArrayConverter<GamePath>))]
+        public Dictionary<RelPath, HashSet<GamePath>> OptionFiles;
 
-        public bool AddFile(string filePath, string gamePath)
+        public bool AddFile(RelPath filePath, GamePath gamePath)
         {
             if (OptionFiles.TryGetValue(filePath, out var set))
                 return set.Add(gamePath);

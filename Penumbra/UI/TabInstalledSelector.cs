@@ -6,7 +6,6 @@ using ImGuiNET;
 using Penumbra.Mods;
 using Penumbra.Models;
 using Dalamud.Interface;
-using System.Collections.Generic;
 
 namespace Penumbra.UI
 {
@@ -49,7 +48,7 @@ namespace Penumbra.UI
 
             public void ResetModNamesLower()
             {
-                _modNamesLower = Mods.ModSettings.Select( I => I.Mod.Meta.Name.ToLowerInvariant() ).ToArray();
+                _modNamesLower = Mods?.ModSettings.Select( I => I.Mod.Meta.Name.ToLowerInvariant() ).ToArray() ?? null;
             }
 
             private void DrawPriorityChangeButton(string iconString, bool up, int unavailableWhen)
