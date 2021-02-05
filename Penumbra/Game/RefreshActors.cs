@@ -12,7 +12,7 @@ namespace Penumbra
         private const int RenderTaskOtherDelay  = 25;
         private const int ModelInvisibilityFlag = 0b10;
 
-        private static async void Redraw(Actor actor)
+        public static async void Redraw(Actor actor)
         {
             if (actor == null)
                 return;
@@ -28,7 +28,7 @@ namespace Penumbra
                 Marshal.WriteInt32(renderModePtr, renderStatus & ~ModelInvisibilityFlag);
             }
 
-            if (actor.ObjectKind == Dalamud.Game.ClientState.Actors.ObjectKind.Player)
+            if (actor.ObjectKind == ObjectKind.Player)
             {
                 DrawObject(RenderTaskPlayerDelay);
                 await Task.Delay(RenderTaskPlayerDelay);

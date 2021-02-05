@@ -12,6 +12,7 @@ namespace Penumbra.UI
             private const string LabelRediscoverButton     = "Rediscover Mods";
             private const string LabelOpenFolder           = "Open Mods Folder";
             private const string LabelEnabled              = "Enable Mods";
+            private const string LabelEnabledPlayerWatch   = "Enable automatic Character Redraws";
             private const string LabelInvertModOrder       = "Invert mod load order (mods are loaded bottom up)";
             private const string LabelShowAdvanced         = "Show Advanced Settings";
             private const string LabelLogLoadedFiles       = "Log all loaded files";
@@ -65,6 +66,20 @@ namespace Penumbra.UI
                     _config.IsEnabled = enabled;
                     _configChanged = true;
                     RefreshActors.RedrawAll(_base._plugin.PluginInterface.ClientState.Actors);
+                }
+            }
+
+            private void DrawEnabledPlayerWatcher()
+            {
+                var enabled = _config.EnableActorWatch;
+                if( ImGui.Checkbox( LabelEnabledPlayerWatch, ref enabled ) )
+                {
+                    _config.EnableActorWatch = enabled;
+                    _configChanged = true;
+                    if (enabled)
+                        _base._plugin.ActorWatcher.EnableActorWatch();
+                    else
+                        _base._plugin.ActorWatcher.DisableActorWatch();
                 }
             }
 
@@ -151,6 +166,7 @@ namespace Penumbra.UI
 
                 ImGuiCustom.VerticalDistance(DefaultVerticalSpace);
                 DrawEnabledBox();
+                DrawEnabledPlayerWatcher();
 
                 ImGuiCustom.VerticalDistance(DefaultVerticalSpace);
                 DrawInvertModOrderBox();
