@@ -221,7 +221,17 @@ namespace Penumbra.Mods
 
         public void DeleteMod( ResourceMod mod )
         {
-            Directory.Delete( mod.ModBasePath.FullName, true );
+            if (mod?.ModBasePath?.Exists ?? false)
+            {
+                try
+                {
+                    Directory.Delete(mod.ModBasePath.FullName, true);
+                }
+                catch( Exception )
+                {
+                    // Todo: something sensible here.
+                }
+            }
             DiscoverMods();
         }
 

@@ -144,8 +144,10 @@ namespace Penumbra.UI
 
             void DrawDeleteModal()
             {
-                if( _deleteIndex != null )
-                    ImGui.OpenPopup( DialogDeleteMod );
+                if( _deleteIndex == null )
+                    return;
+
+                ImGui.OpenPopup( DialogDeleteMod );
 
                 var ret = ImGui.BeginPopupModal( DialogDeleteMod );
                 if( !ret )
@@ -155,6 +157,7 @@ namespace Penumbra.UI
                 {
                     ImGui.CloseCurrentPopup();
                     ImGui.EndPopup();
+                    return;
                 }
 
                 ImGui.Text( "Are you sure you want to delete the following mod:" );
