@@ -18,6 +18,9 @@ namespace Penumbra.UI
             private const string LabelSelectorList   = "##charSelection";
             private const float  SelectorPanelWidth  = 240f;
             private const uint   DisabledCharColor   = 0xFF666666;
+            private const float  InputTextWidth      = -1;
+            private const float  InputPriorityWidth  = 120;
+
             private readonly SettingsInterface _base;
             private Dictionary<string, CharacterSettings> List { get{ return _base._plugin.ModManager.CharacterSettings.CharacterConfigs; }}
             public TabCharacters(SettingsInterface ui) => _base = ui;
@@ -32,10 +35,9 @@ namespace Penumbra.UI
                 if (!ret)
                     return;
 
-                var changedColor = false;
-
                 for (var i = 0; i < List.Count; ++i)
                 {
+                    var changedColor = false;
                     var (name, settings) = (List.ElementAt(i).Key, List.ElementAt(i).Value);
                     if (!settings.Enabled)
                     {
@@ -64,8 +66,23 @@ namespace Penumbra.UI
                 ImGui.SameLine();
                 if (ImGui.Button("Add Selected") && _newCharName.Length > 0 && _currentChar < List.Count && !List.ContainsKey(_newCharName))
                 {
-                    List[_newCharName] = List.ElementAt(_currentChar).Value;
+                    List[_newCharName] = List.ElementAt(_currentChar).Value.Copy();
                     CharacterSettingList.SaveToFile(_newCharName, List[_newCharName], CharacterSettingsFile(_newCharName));
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Delete") && _currentChar < List.Count)
+                {
+                    List.Remove(List.ElementAt(_currentChar).Key);
+                    try
+                    {
+                        var file = CharacterSettingsFile(_newCharName);
+                        if (file.Exists)
+                            file.Delete();
+                    }
+                    catch(Exception e)
+                    {
+                        PluginLog.Error($"Could not delete file:\n{e}");
+                    }
                 }
                 ImGui.EndGroup();
             }
@@ -86,6 +103,7 @@ namespace Penumbra.UI
                 if (ImGui.Checkbox("Enable Character", ref charEnabled))
                 {
                     conf.Enabled = charEnabled;
+                    
                     CharacterSettingList.SaveToFile(name, conf, CharacterSettingsFile(name));
                 }
 
@@ -97,15 +115,67 @@ namespace Penumbra.UI
                     CharacterSettingList.SaveToFile(name, conf, CharacterSettingsFile(name));
                 }
 
-                foreach (var mod in conf.ModSettings)
+                foreach (var mod in conf.ModSettingsJson.ToArray())
                 {
-                    ImGui.Selectable($"{mod.Value.Priority} - {mod.Key}");
-                    ImGui.Indent(40);
-                    foreach (var group in mod.Value.Options)
+                    var modChanged = false;
+                    var modName = mod.Key;
+                    if (ImGuiCustom.BeginFramedGroupEdit(ref modName))
                     {
-                        ImGui.Selectable($"{group.Value} - {group.Key}");
+                        if(modName != mod.Key && !conf.ModSettingsJson.ContainsKey(modName))
+                        {
+                            conf.ModSettingsJson.Add(modName, mod.Value);
+                        conf.ModSettingsJson.Remove(mod.Key);
+                        modChanged = true;
+                        }
                     }
-                    ImGui.Unindent(40);
+                    var tmpPriority = mod.Value.Priority;
+                    ImGui.SetNextItemWidth(InputPriorityWidth);
+                    if (ImGui.InputInt($"Priority##{modName}", ref tmpPriority))
+                    {
+                        if (mod.Value.Priority != tmpPriority)
+                        {
+                            mod.Value.Priority = tmpPriority;
+                            modChanged = true;
+                        }
+                    }
+                    foreach (var group in mod.Value.Options.ToArray())
+                    {
+                        var groupName = group.Key;
+                        ImGui.SetNextItemWidth(InputTextWidth);
+                        if (ImGui.InputText($"##{groupName}", ref groupName, 64, ImGuiInputTextFlags.EnterReturnsTrue))
+                        {
+                            if (groupName != group.Key && !mod.Value.Options.ContainsKey(groupName))
+                            {
+                                mod.Value.Options.Add(groupName, group.Value);
+                                mod.Value.Options.Remove(group.Key);
+                                modChanged = true;
+                            }
+                        }
+                        ImGui.Indent(40);
+                        foreach (var option in group.Value.ToArray())
+                        {
+                            var optionName = option;
+                            ImGui.SetNextItemWidth(InputTextWidth);
+                            if (ImGui.InputText($"##{groupName}_{option}", ref optionName, 64, ImGuiInputTextFlags.EnterReturnsTrue))
+                            {
+                                if (optionName != option && !group.Value.Contains(optionName))
+                                {
+                                    group.Value.Add(optionName);
+                                    group.Value.Remove(option);
+                                    modChanged = true;
+                                }
+                            }
+                        }
+                        ImGui.Unindent(40);
+                    }
+                    
+                    ImGuiCustom.EndFramedGroup();
+                    if (modChanged)
+                    {
+                        conf.ComputeModSettings(_base._plugin.ModManager.Mods.ModSettings);
+                        conf.RenewFiles(_base._plugin.ModManager.Mods.ModSettings);
+                        CharacterSettingList.SaveToFile(name, conf, CharacterSettingsFile(name));
+                    }
                 }
 
                 ImGui.EndChild();
