@@ -3,145 +3,181 @@ using Dalamud.Game.ClientState.Actors;
 using Dalamud.Game.ClientState.Actors.Types;
 using System.Threading.Tasks;
 using Penumbra.Mods;
+using Dalamud.Plugin;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Penumbra
 {
-    public static class RefreshActors
+    public enum Redraw
+    {
+        WithoutSettings,
+        WithSettings,
+        OnlyWithSettings
+    }
+
+    public class ActorRefresher
     {
         private const int RenderModeOffset      = 0x0104;
-        private const int RenderTaskPlayerDelay = 75;
-        private const int RenderTaskOtherDelay  = 25;
         private const int ModelInvisibilityFlag = 0b10;
+        private const int DefaultWaitFrames     = 1;
 
-        public static async void RedrawWithSettings(ModManager mods, Actor actor, bool onlyWithSettings)
+        private readonly DalamudPluginInterface    _pi;
+        private readonly ModManager                _mods;
+        private readonly Queue<(int id, Redraw s)> _actorIds = new();
+
+        private int  _currentFrame    = 0;
+        private bool _changedSettings = false;
+        private int  _currentActorId  = -1;
+
+        public ActorRefresher(DalamudPluginInterface pi, ModManager mods)
+        { 
+            _pi   = pi; 
+            _mods = mods;
+        }
+
+
+        private void ChangeSettings(string name)
         {
-            if (actor == null)
-                return;
-
-            var changedSettings = false;
-            if (mods.CharacterSettings.CharacterConfigs.TryGetValue(actor.Name, out var settings) && settings.Enabled)
+            if (_mods.CharacterSettings.CharacterConfigs.TryGetValue(name, out var settings) && settings.Enabled)
             {
-                mods.ExchangeFileLists(settings.ResolvedFiles, settings.SwappedFiles);
-                changedSettings = true; 
-            }
-            else if (onlyWithSettings)
-                return;
-
-            var ptr = actor.Address;
-            var renderModePtr = ptr + RenderModeOffset;
-            var renderStatus = Marshal.ReadInt32(renderModePtr);
-
-            async void DrawObject(int delay)
-            {
-                Marshal.WriteInt32(renderModePtr, renderStatus | ModelInvisibilityFlag);
-                await Task.Delay(delay);
-                Marshal.WriteInt32(renderModePtr, renderStatus & ~ModelInvisibilityFlag);
-            }
-
-            if (actor.ObjectKind == ObjectKind.Player)
-            {
-                DrawObject(RenderTaskPlayerDelay);
-                await Task.Delay(RenderTaskPlayerDelay);
-            }
-            else
-                DrawObject(RenderTaskOtherDelay);
-            
-            if (changedSettings)
-            {
-                await Task.Delay(RenderTaskPlayerDelay);
-                mods.RestoreDefaultFileLists();
+                _mods.ExchangeFileLists(settings.ResolvedFiles, settings.SwappedFiles);
+                _changedSettings = true;
             }
         }
 
-        public static async void Redraw(Actor actor)
+        private void RestoreSettings()
         {
-            if (actor == null)
-                return;
-
-            var ptr = actor.Address;
-            var renderModePtr = ptr + RenderModeOffset;
-            var renderStatus = Marshal.ReadInt32(renderModePtr);
-
-            async void DrawObject(int delay)
+            if (_changedSettings)
             {
-                Marshal.WriteInt32(renderModePtr, renderStatus | ModelInvisibilityFlag);
-                await Task.Delay(delay);
-                Marshal.WriteInt32(renderModePtr, renderStatus & ~ModelInvisibilityFlag);
+                _mods.RestoreDefaultFileLists();
+                _changedSettings = false;
             }
-
-            if (actor.ObjectKind == ObjectKind.Player)
-            {
-                DrawObject(RenderTaskPlayerDelay);
-                await Task.Delay(RenderTaskPlayerDelay);
-            }
-            else
-                DrawObject(RenderTaskOtherDelay);
         }
 
-        private static Actor GetName(ActorTable actors, Targets targets, string name)
+        private static void WriteInvisible(IntPtr renderPtr)
         {
+            if (renderPtr != IntPtr.Zero)
+            {
+                var renderStatus = Marshal.ReadInt32(renderPtr) | ModelInvisibilityFlag;
+                Marshal.WriteInt32(renderPtr, renderStatus);
+            }
+        }
+
+        private static void WriteVisible(IntPtr renderPtr)
+        {
+            if (renderPtr != IntPtr.Zero)
+            {
+                var renderStatus = Marshal.ReadInt32(renderPtr) & ~ModelInvisibilityFlag;
+                Marshal.WriteInt32(renderPtr, renderStatus);
+            }
+        }
+
+        private Actor FindCurrentActor() => _pi.ClientState.Actors.FirstOrDefault( A => A.ActorId == _currentActorId );
+
+        private void InitialStep()
+        {
+            if (_actorIds.Count > 0)
+            {
+                var id = _actorIds.Dequeue();
+                _currentActorId = id.id;
+                var actor = FindCurrentActor();
+                if (actor == null)
+                    return;
+
+                if (id.s != Redraw.WithoutSettings)
+                    ChangeSettings(actor.Name);
+                if (id.s == Redraw.OnlyWithSettings && !_changedSettings)
+                    return;
+
+                WriteInvisible(actor.Address + RenderModeOffset);
+                ++_currentFrame;
+            }
+            else
+                _pi.Framework.OnUpdateEvent -= OnUpdateEvent;
+        }
+
+        private void SecondStep()
+        {
+            var actor = FindCurrentActor();
+            if (actor == null)
+            {
+                _currentFrame = 0;
+                RestoreSettings();
+            }
+
+            WriteVisible(actor.Address + RenderModeOffset);
+            if (!_changedSettings)
+                _currentFrame = 0;
+            else
+                ++_currentFrame;
+        }
+
+        private void FinalStep()
+        {
+            RestoreSettings();
+            _currentFrame = 0;
+        }
+
+        private void OnUpdateEvent(object Framework)
+        {
+            switch (_currentFrame)
+            {
+                case  0: InitialStep();     break;
+                case  1: SecondStep();      break;
+                case  2: FinalStep();       break;
+                default: _currentFrame = 0; break;
+            }
+        }
+
+        private void RedrawActor(int actorId, Redraw settings)
+        {
+            if (_actorIds.Contains((actorId, settings)))
+                return;
+            _actorIds.Enqueue((actorId, settings));
+            if (_actorIds.Count == 1)
+                _pi.Framework.OnUpdateEvent += OnUpdateEvent;
+        }
+
+        public void RedrawActor(Actor actor, Redraw settings = Redraw.WithSettings)
+        {
+            if (actor != null) 
+                RedrawActor(actor.ActorId, settings);
+        }
+
+        private Actor GetName(string name)
+        {
+            if (name == null)
+                return null;
+
             switch(name)
             {
+                case "":
+                    return null;
                 case "<me>":
                 case "self":
-                    return actors[0];
+                    return _pi.ClientState.Actors[0];
                 case "<t>":
                 case "target":
-                    return targets.CurrentTarget;
+                    return _pi.ClientState.Targets.CurrentTarget;
                 case "<f>":
                 case "focus":
-                    return targets.FocusTarget;
+                    return _pi.ClientState.Targets.FocusTarget;
                 case "<mo>":
                 case "mouseover":
-                    return targets.MouseOverTarget;
+                    return _pi.ClientState.Targets.MouseOverTarget;
+                default:
+                    return _pi.ClientState.Actors.FirstOrDefault( A => A.Name == name);
             }
-            return null;
         }
 
-        public static void RedrawSpecific(ActorTable actors, Targets targets, string name)
+        public void RedrawActor(string name, Redraw settings = Redraw.WithSettings) => RedrawActor(GetName(name), settings);
+
+        public void RedrawAll(Redraw settings = Redraw.WithSettings)
         {
-            if (name?.Length == 0)
-            {
-                RedrawAll(actors);
-                return;
-            }
-
-            var Actor = GetName(actors, targets, name);
-            if (Actor != null)
-                Redraw(Actor);
-            else
-                foreach (var actor in actors)
-                    if (actor.Name == name)
-                        Redraw(actor);
-        }
-
-        public static void RedrawSpecificWithSettings(ModManager mods, ActorTable actors, Targets targets, string name, bool onlyWithSettings)
-        {
-            if (name?.Length == 0)
-            {
-                RedrawAllWithSettings(mods, actors, onlyWithSettings);
-                return;
-            }
-
-            var Actor = GetName(actors, targets, name);
-            if (Actor != null)
-                RedrawWithSettings(mods, Actor, onlyWithSettings);
-            else
-                foreach (var actor in actors)
-                    if (actor.Name == name)
-                        RedrawWithSettings(mods, Actor, onlyWithSettings);
-        }
-
-        public static void RedrawAll(ActorTable actors)
-        {
-            foreach (var actor in actors)
-                Redraw(actor);
-        }
-
-        public static void RedrawAllWithSettings(ModManager mods, ActorTable actors, bool onlyWithSettings)
-        {
-            foreach (var actor in actors)
-                RedrawWithSettings(mods, actor, onlyWithSettings);
+            foreach (var A in _pi.ClientState.Actors)
+                RedrawActor(A.ActorId, settings);
         }
     }
 }

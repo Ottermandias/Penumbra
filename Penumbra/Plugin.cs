@@ -31,6 +31,7 @@ namespace Penumbra
         public GameUtils GameUtils { get; set; }
 
         public string PluginDebugTitleStr { get; private set; }
+        public ActorRefresher ActorRefresher { get; set; }
         public PlayerWatcher ActorWatcher{ get; set; }
 
         private WebServer _webServer;
@@ -48,6 +49,8 @@ namespace Penumbra
             ModManager = new ModManager( this );
             ModManager.CharacterSettings.ReadAll( new(Configuration.CurrentCollection) );
             ModManager.DiscoverMods( Configuration.CurrentCollection );
+
+            ActorRefresher = new(PluginInterface, ModManager);
 
             foreach ( var actor in ModManager.CharacterSettings.CharacterConfigs.Keys )
                 ActorWatcher.AddPlayerToWatch(actor);
@@ -81,10 +84,10 @@ namespace Penumbra
             }
         }
 
-        private async void RedrawWithConfig(Actor actor)
+        private void RedrawWithConfig(Actor actor)
         {
             PluginInterface.Framework.Gui.Chat.Print("Event!");
-            RefreshActors.RedrawWithSettings(ModManager, actor, true);
+            ActorRefresher.RedrawActor(actor, Redraw.OnlyWithSettings);
         }
 
         public void CreateWebServer()
@@ -145,9 +148,9 @@ namespace Penumbra
                     case "redraw":
                     {
                         if (args.Length > 1)
-                            RefreshActors.RedrawSpecificWithSettings(ModManager, PluginInterface.ClientState.Actors, PluginInterface.ClientState.Targets, string.Join(" ", args.Skip(1)), false);
+                            ActorRefresher.RedrawActor(string.Join(" ", args.Skip(1)), Redraw.WithSettings);
                         else
-                            RefreshActors.RedrawAllWithSettings(ModManager, PluginInterface.ClientState.Actors, false);
+                            ActorRefresher.RedrawAll(Redraw.WithSettings);
                         break;
                     }
                 }
