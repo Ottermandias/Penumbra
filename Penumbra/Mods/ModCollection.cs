@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Dalamud.Plugin;
@@ -21,10 +22,19 @@ namespace Penumbra.Mods
             _basePath = basePath;
         }
 
-        public void Load( bool invertOrder = false )
+        [Conditional("DEBUG")]
+        private void PrintDebugInfo()
+        {
+            foreach( var ms in ModSettings )
+            {
+                PluginLog.Information( $"mod: {ms.FolderName} Enabled: {ms.Enabled} Priority: {ms.Priority}");
+            }
+        }
+
+        private void ReadCollectionJson(string fileName)
         {
             // find the collection json
-            var collectionPath = Path.Combine( _basePath.FullName, "collection.json" );
+            var collectionPath = Path.Combine( _basePath.FullName, fileName );
             if( File.Exists( collectionPath ) )
             {
                 try
@@ -37,21 +47,11 @@ namespace Penumbra.Mods
                     PluginLog.Error( $"failed to read log collection information, failed path: {collectionPath}, err: {e.Message}" );
                 }
             }
-
-#if DEBUG
-            if( ModSettings != null )
-            {
-                foreach( var ms in ModSettings )
-                {
-                    PluginLog.Information(
-                        "mod: {ModName} Enabled: {Enabled} Priority: {Priority}",
-                        ms.FolderName, ms.Enabled, ms.Priority
-                    );
-                }
-            }
-#endif
-
             ModSettings ??= new();
+        }
+
+        private List<string> GatherMods()
+        {
             var foundMods = new List< string >();
 
             foreach( var modDir in _basePath.EnumerateDirectories() )
@@ -60,7 +60,10 @@ namespace Penumbra.Mods
 
                 if( metaFile == null )
                 {
+                    // Allow for folders collecting ttmps or similar without pumping error outside of DEBUG.
+#if DEBUG
                     PluginLog.LogError( "mod meta is missing for resource mod: {ResourceModLocation}", modDir );
+#endif
                     continue;
                 }
 
@@ -76,21 +79,22 @@ namespace Penumbra.Mods
                 foundMods.Add( modDir.Name );
                 mod.RefreshModFiles();
             }
+            return foundMods;
+        }
+
+        public void Load( bool invertOrder = false )
+        {
+            ReadCollectionJson("collection.json");
+            PrintDebugInfo();
+
+            var foundMods = GatherMods();
 
             // remove any mods from the collection we didn't find
-            ModSettings = ModSettings.Where(
-                x =>
-                    foundMods.Any(
-                        fm => string.Equals( x.FolderName, fm, StringComparison.InvariantCultureIgnoreCase )
-                    )
-            ).ToList();
-
-            // if anything gets removed above, the priority ordering gets fucked, so we need to resort and reindex them otherwise BAD THINGS HAPPEN
-            ModSettings = ModSettings.OrderBy( x => x.Priority ).ToList();
-            var p = 0;
-            foreach( var modSetting in ModSettings )
+            if (ModSettings.RemoveAll( x => !foundMods.Any(fm => string.Equals( x.FolderName, fm, StringComparison.InvariantCultureIgnoreCase ))) > 0)
             {
-                modSetting.Priority = p++;
+                ModSettings.Sort( (x,y) => x.Priority - y.Priority );
+                var p = 0;
+                ModSettings.ForEach( ms => ms.Priority = p++);
             }
 
             // reorder the resourcemods list so we can just directly iterate

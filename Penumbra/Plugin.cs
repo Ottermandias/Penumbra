@@ -1,4 +1,6 @@
 using System.Linq;
+using System.Threading.Tasks;
+using Dalamud.Game.ClientState.Actors.Types;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
 using EmbedIO;
@@ -44,7 +46,12 @@ namespace Penumbra
             ActorWatcher = new(PluginInterface);
 
             ModManager = new ModManager( this );
+            ModManager.CharacterSettings.ReadAll( new(Configuration.CurrentCollection) );
             ModManager.DiscoverMods( Configuration.CurrentCollection );
+
+            foreach ( var actor in ModManager.CharacterSettings.CharacterConfigs.Keys )
+                ActorWatcher.AddPlayerToWatch(actor);
+            ActorWatcher.ActorChanged += RedrawWithConfig;
 
             ResourceLoader = new ResourceLoader( this );
 
@@ -72,6 +79,12 @@ namespace Penumbra
             {
                 ActorWatcher.EnableActorWatch();
             }
+        }
+
+        private async void RedrawWithConfig(Actor actor)
+        {
+            PluginInterface.Framework.Gui.Chat.Print("Event!");
+            RefreshActors.RedrawWithSettings(ModManager, actor, true);
         }
 
         public void CreateWebServer()
@@ -132,9 +145,9 @@ namespace Penumbra
                     case "redraw":
                     {
                         if (args.Length > 1)
-                            RefreshActors.RedrawSpecific(PluginInterface.ClientState.Actors, PluginInterface.ClientState.Targets, string.Join(" ", args.Skip(1)));
+                            RefreshActors.RedrawSpecificWithSettings(ModManager, PluginInterface.ClientState.Actors, PluginInterface.ClientState.Targets, string.Join(" ", args.Skip(1)), false);
                         else
-                            RefreshActors.RedrawAll(PluginInterface.ClientState.Actors);
+                            RefreshActors.RedrawAllWithSettings(ModManager, PluginInterface.ClientState.Actors, false);
                         break;
                     }
                 }

@@ -26,7 +26,7 @@ namespace Penumbra.UI
             {
                 if (advanced)
                 {
-                    _fileList    = _mods.ResolvedFiles.Select( P => (P.Value, P.Key) ).ToArray();
+                    _fileList    = _mods.DefaultResolvedFiles.Select( P => (P.Value, P.Key) ).ToArray();
                     _maxGamePath = ((_fileList.Length > 0) ? _fileList.Max( P => ImGui.CalcTextSize(P.Item2).X ) : 0f) + TextSizePadding;
                 }
                 else

@@ -6,62 +6,46 @@ using Penumbra.Models;
 
 namespace Penumbra.Mods
 {
+
+    public class ResolvedFiles : Dictionary<GamePath, FileInfo>{ }
+    public class  SwappedFiles : Dictionary<GamePath, GamePath>{ }
+
     public class ModManager : IDisposable
     {
         private readonly Plugin _plugin;
-        public readonly Dictionary<GamePath, FileInfo > ResolvedFiles = new();
-        public readonly Dictionary<GamePath, GamePath > SwappedFiles = new();
+        private DirectoryInfo   _basePath;
+
+        public readonly CharacterSettingList CharacterSettings = new();
+        public readonly ResolvedFiles DefaultResolvedFiles = new();
+        public readonly  SwappedFiles DefaultSwappedFiles  = new();
+
+        public ResolvedFiles CurrentResolvedFiles;
+        public  SwappedFiles CurrentSwappedFiles;
 
         public ModCollection Mods { get; set; }
-
-        private DirectoryInfo _basePath;
 
         public ModManager( Plugin plugin )
         {
             _plugin = plugin;
+            RestoreDefaultFileLists();
         }
+
+        public void ExchangeFileLists(ResolvedFiles resolved, SwappedFiles swapped)
+        {
+            CurrentResolvedFiles = resolved;
+            CurrentSwappedFiles = swapped;
+        }
+
+        public void RestoreDefaultFileLists() => ExchangeFileLists(DefaultResolvedFiles, DefaultSwappedFiles);
 
         public void DiscoverMods()
         {
-            if( _basePath == null )
-            {
-                return;
-            }
-
-            DiscoverMods( _basePath );
+            if( _basePath != null )
+                DiscoverMods( _basePath );
         }
 
-//         private void FileSystemWatcherOnChanged( object sender, FileSystemEventArgs e )
-//         {
-// #if DEBUG
-//             PluginLog.Verbose( "file changed: {FullPath}", e.FullPath );
-// #endif
-//
-//             if( _plugin.ImportInProgress )
-//             {
-//                 return;
-//             }
-//
-//             if( _plugin.Configuration.DisableFileSystemNotifications )
-//             {
-//                 return;
-//             }
-//
-//             var file = e.FullPath;
-//
-//             if( !ResolvedFiles.Any( x => x.Value.FullName == file ) )
-//             {
-//                 return;
-//             }
-//
-//             PluginLog.Log( "a loaded file has been modified - file: {FullPath}", file );
-//             _plugin.GameUtils.ReloadPlayerResources();
-//         }
+        public void DiscoverMods( string basePath ) => DiscoverMods( new DirectoryInfo(basePath) );
 
-        public void DiscoverMods( string basePath )
-        {
-            DiscoverMods( new DirectoryInfo( basePath ) );
-        }
 
         public void DiscoverMods( DirectoryInfo basePath )
         {
@@ -78,130 +62,58 @@ namespace Penumbra.Mods
 
             _basePath = basePath;
 
-            // haha spaghet
-            // _fileSystemWatcher?.Dispose();
-            // _fileSystemWatcher = new FileSystemWatcher( _basePath.FullName )
-            // {
-            //     NotifyFilter = NotifyFilters.LastWrite |
-            //                    NotifyFilters.FileName |
-            //                    NotifyFilters.DirectoryName,
-            //     IncludeSubdirectories = true,
-            //     EnableRaisingEvents = true
-            // };
-            //
-            // _fileSystemWatcher.Changed += FileSystemWatcherOnChanged;
-            // _fileSystemWatcher.Created += FileSystemWatcherOnChanged;
-            // _fileSystemWatcher.Deleted += FileSystemWatcherOnChanged;
-            // _fileSystemWatcher.Renamed += FileSystemWatcherOnChanged;
+//            FileSystemWatcherPasta();
 
             Mods = new ModCollection( basePath );
             Mods.Load();
-            Mods.Save();
 
             CalculateEffectiveFileList();
-
-            // Needed to reload body textures with mods
-            //_plugin.GameUtils.ReloadPlayerResources();
         }
 
-        public void CalculateEffectiveFileList()
+        public static bool CalculateEffectiveFileList(ResolvedFiles resolvedFiles, SwappedFiles swappedFiles, IEnumerable<(ResourceMod mod, ModSettings settings)> enabledMods)
         {
-            ResolvedFiles.Clear();
-            SwappedFiles.Clear();
+            var changedConfig = false;
+            resolvedFiles.Clear();
+            swappedFiles.Clear();
+            var registeredFiles = new Dictionary<GamePath, string>();
 
-            var registeredFiles = new Dictionary<GamePath, string >();
-
-            foreach( var (mod, settings) in Mods.GetOrderedAndEnabledModListWithSettings( _plugin.Configuration.InvertModListOrder ) )
+            foreach (var (mod, settings) in enabledMods)
             {
                 mod.FileConflicts?.Clear();
 
-                if(settings.Conf == null) {
-                    settings.Conf = new();
-                    _plugin.ModManager.Mods.Save();
+                if(settings.Options == null) 
+                {
+                    settings.Options = new();
+                    changedConfig = true;
                 }
 
                 foreach( var file in mod.ModFiles )
                 {
                     RelPath relativeFilePath = new(file, mod.ModBasePath);
                     
-                    var doNotAdd = false;
-                    void AddFiles(HashSet<GamePath> gamePaths)
+                    var (configChanged, gamePaths) = mod.Meta.GetFilesForConfig(relativeFilePath, settings);
+                    changedConfig = configChanged;
+
+                    foreach (var gamePath in gamePaths)
                     {
-                        doNotAdd = true;
-                        foreach (var gamePath in gamePaths)
+                        if( !resolvedFiles.ContainsKey( gamePath ) )
                         {
-                            if( !ResolvedFiles.ContainsKey( gamePath ) )
-                            {
-                                ResolvedFiles[gamePath] = file;
-                                registeredFiles[gamePath] = mod.Meta.Name;
-                            }
-                            else if( registeredFiles.TryGetValue( gamePath, out var modName ) )
-                            {
-                                mod.AddConflict( modName, gamePath );
-                            }
+                            resolvedFiles[gamePath] = file;
+                            registeredFiles[gamePath] = mod.Meta.Name;
+                        }
+                        else if( registeredFiles.TryGetValue( gamePath, out var modName ) )
+                        {
+                            mod.AddConflict( modName, gamePath );
                         }
                     }
-
-                    HashSet<GamePath> paths;
-                    foreach (var group in mod.Meta.Groups.Values)
-                    {
-                        if (!settings.Conf.TryGetValue(group.GroupName, out var setting) 
-                            || (group.SelectionType == SelectType.Single && settings.Conf[group.GroupName] >= group.Options.Count))
-                        {
-                            settings.Conf[group.GroupName] = 0;
-                            _plugin.ModManager.Mods.Save();
-                            setting = 0;
-                        }
-
-                        if (group.Options.Count == 0)
-                            continue;
-
-                        if (group.SelectionType == SelectType.Multi)
-                            settings.Conf[group.GroupName] &= ((1 << group.Options.Count) - 1);
-                        
-                        switch(group.SelectionType)
-                        {
-                            case SelectType.Single:
-                                if (group.Options[setting].OptionFiles.TryGetValue(relativeFilePath, out paths))
-                                    AddFiles(paths);
-                                else
-                                {
-                                    for(var i = 0; i < group.Options.Count; ++i)
-                                    {
-                                        if (i == setting)
-                                            continue;
-                                        if(group.Options[i].OptionFiles.ContainsKey(relativeFilePath))
-                                        {
-                                            doNotAdd = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                                break;
-                            case SelectType.Multi:
-                                for(var i = 0; i < group.Options.Count; ++i)
-                                {
-                                    if ((setting & (1 << i)) != 0)
-                                    {
-                                        if (group.Options[i].OptionFiles.TryGetValue(relativeFilePath, out paths))
-                                            AddFiles(paths);
-                                    }
-                                    else if (group.Options[i].OptionFiles.ContainsKey(relativeFilePath))
-                                        doNotAdd = true;
-                                }
-                                break;
-                        }
-                    }
-                    if (!doNotAdd)
-                        AddFiles(new() { new GamePath(relativeFilePath) });
                 }
 
                 foreach( var swap in mod.Meta.FileSwaps )
                 {
                     // just assume people put not fucked paths in here lol
-                    if( !SwappedFiles.ContainsKey( swap.Value ) )
+                    if( !swappedFiles.ContainsKey( swap.Value ) )
                     {
-                        SwappedFiles[ swap.Key ] = swap.Value;
+                        swappedFiles[ swap.Key ] = swap.Value;
                         registeredFiles[ swap.Key ] = mod.Meta.Name;
                     }
                     else if( registeredFiles.TryGetValue( swap.Key, out var modName ) )
@@ -210,6 +122,15 @@ namespace Penumbra.Mods
                     }
                 }
             }
+            return changedConfig;
+        }
+
+        public void CalculateEffectiveFileList()
+        {
+            var enumerator = Mods.GetOrderedAndEnabledModListWithSettings( _plugin.Configuration.InvertModListOrder );
+            if (CalculateEffectiveFileList(DefaultResolvedFiles, DefaultSwappedFiles, enumerator.Select( p => (p.Item1, p.Item2 as ModSettings))))
+                _plugin.ModManager.Mods.Save();
+            CharacterSettings.RenewFiles(Mods.ModSettings);
             _plugin.GameUtils.ReloadPlayerResources();
         }
 
@@ -237,7 +158,7 @@ namespace Penumbra.Mods
 
         public FileInfo GetCandidateForGameFile( GamePath gameResourcePath )
         {
-            var val = ResolvedFiles.TryGetValue( gameResourcePath, out var candidate );
+            var val = CurrentResolvedFiles.TryGetValue( gameResourcePath, out var candidate );
             if( !val )
             {
                 return null;
@@ -253,7 +174,7 @@ namespace Penumbra.Mods
 
         public GamePath GetSwappedFilePath( GamePath gameResourcePath )
         {
-            return SwappedFiles.TryGetValue( gameResourcePath, out var swappedPath ) ? swappedPath : GamePath.GenerateUnchecked(null);
+            return CurrentSwappedFiles.TryGetValue( gameResourcePath, out var swappedPath ) ? swappedPath : GamePath.GenerateUnchecked(null);
         }
 
         public string ResolveSwappedOrReplacementFilePath( GamePath gameResourcePath )
@@ -266,5 +187,51 @@ namespace Penumbra.Mods
         {
             // _fileSystemWatcher?.Dispose();
         }
+
+//        public void FileSystemWatcherPasta()
+//        {
+//             haha spaghet
+//             _fileSystemWatcher?.Dispose();
+//             _fileSystemWatcher = new FileSystemWatcher( _basePath.FullName )
+//             {
+//                 NotifyFilter = NotifyFilters.LastWrite |
+//                                NotifyFilters.FileName |
+//                                NotifyFilters.DirectoryName,
+//                 IncludeSubdirectories = true,
+//                 EnableRaisingEvents = true
+//             };
+//            
+//             _fileSystemWatcher.Changed += FileSystemWatcherOnChanged;
+//             _fileSystemWatcher.Created += FileSystemWatcherOnChanged;
+//             _fileSystemWatcher.Deleted += FileSystemWatcherOnChanged;
+//             _fileSystemWatcher.Renamed += FileSystemWatcherOnChanged;
+//        }
+
+//         private void FileSystemWatcherOnChanged( object sender, FileSystemEventArgs e )
+//         {
+// #if DEBUG
+//             PluginLog.Verbose( "file changed: {FullPath}", e.FullPath );
+// #endif
+//
+//             if( _plugin.ImportInProgress )
+//             {
+//                 return;
+//             }
+//
+//             if( _plugin.Configuration.DisableFileSystemNotifications )
+//             {
+//                 return;
+//             }
+//
+//             var file = e.FullPath;
+//
+//             if( !ResolvedFiles.Any( x => x.Value.FullName == file ) )
+//             {
+//                 return;
+//             }
+//
+//             PluginLog.Log( "a loaded file has been modified - file: {FullPath}", file );
+//             _plugin.GameUtils.ReloadPlayerResources();
+//         }
     }
 }

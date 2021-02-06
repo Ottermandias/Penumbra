@@ -524,13 +524,13 @@ namespace Penumbra.UI
                 if (ImGuiCustom.BeginFramedGroupEdit(ref groupName)
                     && groupName != group.GroupName && !Meta.Groups.ContainsKey(groupName))
                 {
-                    var oldConf = Mod.Conf[group.GroupName];
+                    var oldConf = Mod.Options[group.GroupName];
                     Meta.Groups.Remove(group.GroupName);
-                    Mod.Conf.Remove(group.GroupName);
+                    Mod.Options.Remove(group.GroupName);
                     if (groupName.Length > 0)
                     {
                         Meta.Groups[groupName] = new(){ GroupName = groupName, SelectionType = SelectType.Multi, Options = group.Options };
-                        Mod.Conf[groupName] = oldConf;
+                        Mod.Options[groupName] = oldConf;
                     }                    
                     return true;
                 }
@@ -554,7 +554,7 @@ namespace Penumbra.UI
             private void DrawMultiSelectorEdit(InstallerInfo group)
             {
                 var nameBoxStart = CheckMarkSize;
-                var flag         = Mod.Conf[group.GroupName];
+                var flag         = Mod.Options[group.GroupName];
 
                 var modChanged   = DrawMultiSelectorEditBegin(group);
                 
@@ -577,7 +577,7 @@ namespace Penumbra.UI
                         {
                             group.Options.RemoveAt(i);
                             var bitmaskFront = (1 << i) - 1;
-                            Mod.Conf[group.GroupName] = (flag & bitmaskFront) | ((flag & ~bitmaskFront) >> 1);
+                            Mod.Options[group.GroupName] = (flag & bitmaskFront) | ((flag & ~bitmaskFront) >> 1);
                             modChanged = true;
                         }
                         else if (newName != opt.OptionName)
@@ -607,16 +607,16 @@ namespace Penumbra.UI
                 if (ImGui.InputText($"##{groupName}_add", ref groupName, 64, ImGuiInputTextFlags.EnterReturnsTrue)
                     && !Meta.Groups.ContainsKey(groupName))
                 {
-                    var oldConf = Mod.Conf[group.GroupName];
+                    var oldConf = Mod.Options[group.GroupName];
                     if (groupName != group.GroupName)
                     {
                         Meta.Groups.Remove(group.GroupName);
-                        Mod.Conf.Remove(group.GroupName);
+                        Mod.Options.Remove(group.GroupName);
                     }
                     if (groupName.Length > 0)
                     {
                         Meta.Groups.Add(groupName, new InstallerInfo(){ GroupName = groupName, Options = group.Options, SelectionType = SelectType.Single } );
-                        Mod.Conf[groupName] = oldConf;
+                        Mod.Options[groupName] = oldConf;
                     }
                     return true;
                 }
@@ -625,7 +625,7 @@ namespace Penumbra.UI
 
             private float DrawSingleSelectorEdit(InstallerInfo group)
             {
-                var code             = Mod.Conf[group.GroupName];
+                var code             = Mod.Options[group.GroupName];
                 var selectionChanged = false;
                 var modChanged       = false;
                 var newName          = "";
@@ -637,7 +637,7 @@ namespace Penumbra.UI
                         {
                             selectionChanged          = true;
                             modChanged                = true;
-                            Mod.Conf[group.GroupName] = code;
+                            Mod.Options[group.GroupName] = code;
                             group.Options.Add(new(){ OptionName = newName, OptionDesc = "", OptionFiles = new()});
                         }
                     }
@@ -655,10 +655,10 @@ namespace Penumbra.UI
                             modChanged = true;
                             group.Options[code] = new Option(){ OptionName = newName, OptionDesc = group.Options[code].OptionDesc, OptionFiles = group.Options[code].OptionFiles};
                         }
-                        if (Mod.Conf[group.GroupName] != code)
+                        if (Mod.Options[group.GroupName] != code)
                         {
                             selectionChanged          = true;
-                            Mod.Conf[group.GroupName] = code;
+                            Mod.Options[group.GroupName] = code;
                         }
                     }
                 }
@@ -687,7 +687,7 @@ namespace Penumbra.UI
                         Options = new()
                     } ;
 
-                    Mod.Conf[newGroup] = 0;
+                    Mod.Options[newGroup] = 0;
                     _selector.SaveCurrentMod();
                     Save();
                 }
@@ -743,7 +743,7 @@ namespace Penumbra.UI
                 {
                     if (oldEnabled != enabled)
                     {
-                        Mod.Conf[group.GroupName] ^= (1 << idx);
+                        Mod.Options[group.GroupName] ^= (1 << idx);
                         Save();
                     }
                 }
@@ -756,7 +756,7 @@ namespace Penumbra.UI
 
                 ImGuiCustom.BeginFramedGroup(group.GroupName);
                 for(var i = 0; i < group.Options.Count; ++i)
-                    DrawMultiSelectorCheckBox(group, i, Mod.Conf[group.GroupName], $"{group.Options[i].OptionName}##{group.GroupName}");
+                    DrawMultiSelectorCheckBox(group, i, Mod.Options[group.GroupName], $"{group.Options[i].OptionName}##{group.GroupName}");
 
                 ImGuiCustom.EndFramedGroup();
             }
@@ -765,10 +765,10 @@ namespace Penumbra.UI
             {
                 if (group.Options.Count < 2)
                     return;
-                var code = Mod.Conf[group.GroupName];
+                var code = Mod.Options[group.GroupName];
                 if( ImGui.Combo( group.GroupName, ref code, group.Options.Select( x => x.OptionName ).ToArray(), group.Options.Count ) )
                 {
-                    Mod.Conf[group.GroupName] = code;
+                    Mod.Options[group.GroupName] = code;
                     Save();
                 }
             }

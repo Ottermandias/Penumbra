@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Actors.Types;
 using System;
-using Dalamud.Plugin;
-using System.Data;
 
 namespace Penumbra
 {

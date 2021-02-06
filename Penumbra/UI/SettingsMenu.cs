@@ -18,7 +18,7 @@ namespace Penumbra.UI
             public  readonly TabBrowser        _browserTab;
             public  readonly TabInstalled      _installedTab;
             public  readonly TabEffective      _effectiveTab;
-
+            public  readonly TabCharacters     _characterTab;
             public SettingsMenu(SettingsInterface ui)
             {
                 _base         = ui;
@@ -27,6 +27,7 @@ namespace Penumbra.UI
                 _browserTab   = new();
                 _installedTab = new(_base);
                 _effectiveTab = new(_base);
+                _characterTab = new(_base);
             }
 
 #if DEBUG
@@ -59,6 +60,7 @@ namespace Penumbra.UI
                 {
                     _browserTab.Draw();
                     _installedTab.Draw();
+                    _characterTab.Draw();
 
                     if( _base._plugin.Configuration.ShowAdvanced )
                         _effectiveTab.Draw();
