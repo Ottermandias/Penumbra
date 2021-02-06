@@ -62,12 +62,14 @@ namespace Penumbra.UI
                 {
                     List[_newCharName] = CharacterSettings.ConvertFromDefault(_base._plugin.Configuration.InvertModListOrder, _base._plugin.ModManager.Mods.ModSettings);
                     CharacterSettingList.SaveToFile(_newCharName, List[_newCharName], CharacterSettingsFile(_newCharName));
+                    _base._plugin.ActorWatcher.AddPlayerToWatch(_newCharName);
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Add Selected") && _newCharName.Length > 0 && _currentChar < List.Count && !List.ContainsKey(_newCharName))
                 {
                     List[_newCharName] = List.ElementAt(_currentChar).Value.Copy();
                     CharacterSettingList.SaveToFile(_newCharName, List[_newCharName], CharacterSettingsFile(_newCharName));
+                    _base._plugin.ActorWatcher.AddPlayerToWatch(_newCharName);
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Delete") && _currentChar < List.Count)
@@ -75,7 +77,9 @@ namespace Penumbra.UI
                     List.Remove(List.ElementAt(_currentChar).Key);
                     try
                     {
-                        var file = CharacterSettingsFile(_newCharName);
+                        var name = List.ElementAt(_currentChar).Key;
+                        var file = CharacterSettingsFile(name);
+                        _base._plugin.ActorWatcher.RemovePlayerFromWatch(name);
                         if (file.Exists)
                             file.Delete();
                     }

@@ -8,7 +8,8 @@ namespace Penumbra
 {
     public class PlayerWatcher : IDisposable
     {
-        private const int ActorsPerFrame = 4;
+        private const int ActorsPerFrame = 2;
+        private const int ActorListPlayerCap = 250;
 
         private readonly DalamudPluginInterface _pi;
         private readonly Dictionary<string, CharEquipment> _equip = new();
@@ -24,6 +25,11 @@ namespace Penumbra
         {
             if (!_equip.ContainsKey(playerName))
                 _equip[playerName] = new();
+        }
+
+        public void RemovePlayerFromWatch(string playerName)
+        {
+            _equip.Remove(playerName);
         }
 
         public void  EnableActorWatch()
@@ -56,14 +62,13 @@ namespace Penumbra
             var Actors = _pi.ClientState.Actors;
             for (var i = 0; i < ActorsPerFrame; ++i)
             {
-                if (_frameTicker >= Actors.Length - 2)
+                if (_frameTicker >= Math.Min(Actors.Length - 2, ActorListPlayerCap))
                     _frameTicker = 0;
                 else
                     _frameTicker += 2;
 
                 var Actor = Actors[_frameTicker];
-                if (Actor == null || Actor.ObjectKind != ObjectKind.Player
-                    || Actor.Name == null || Actor.Name.Length == 0)
+                if ((Actor?.Name?.Length ?? 0) == 0 ||  Actor.ObjectKind != ObjectKind.Player)
                     continue;
 
                 if (_equip.TryGetValue(Actor.Name, out var equip))
