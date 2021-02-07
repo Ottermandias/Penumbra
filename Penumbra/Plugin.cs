@@ -84,11 +84,7 @@ namespace Penumbra
             }
         }
 
-        private void RedrawWithConfig(Actor actor)
-        {
-            PluginInterface.Framework.Gui.Chat.Print("Event!");
-            ActorRefresher.RedrawActor(actor, Redraw.OnlyWithSettings);
-        }
+        private void RedrawWithConfig(Actor actor) => ActorRefresher.RedrawActor(actor, Redraw.OnlyWithSettings);
 
         public void CreateWebServer()
         {

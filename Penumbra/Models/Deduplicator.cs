@@ -210,9 +210,9 @@ namespace Penumbra.Models
             }
         }
 
-        private static bool FileIsInAnyGroup(ModMeta meta, RelPath relPath)
+        private static bool FileIsInAnyGroup(ModMeta meta, RelPath relPath, bool exceptDuplicates = false)
         {
-            foreach (var group in meta.Groups.Values)
+            foreach (var group in meta.Groups.Values.Where( G => !exceptDuplicates || G.GroupName != Duplicates))
                 foreach (var option in group.Options)
                     if (option.OptionFiles.ContainsKey(relPath))
                         return true;
@@ -295,6 +295,27 @@ namespace Penumbra.Models
                     }
                 }
             }
+
+            // Clean up duplicates.
+            if (meta.Groups.TryGetValue(Duplicates, out var info))
+            {
+                var requiredIdx = info.Options.FindIndex(O => O.OptionName == Required);
+                if ( requiredIdx >= 0)
+                {
+                    var required = info.Options[requiredIdx];
+                    foreach (var kvp in required.OptionFiles.ToArray())
+                    { 
+                        if (kvp.Value.Count > 1)
+                            continue;
+
+                        if (FileIsInAnyGroup(meta, kvp.Key, true))
+                            continue;
+                        if (kvp.Value.Count == 0 || (string) kvp.Value.ElementAt(0) == new GamePath(kvp.Key))
+                            required.OptionFiles.Remove(kvp.Key);
+                    }
+                }
+            }
+
             ClearEmptySubDirectories(baseDir);
         }
     }
