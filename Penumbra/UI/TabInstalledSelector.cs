@@ -26,9 +26,12 @@ namespace Penumbra.UI
             private const string ButtonNoDelete      = "No, keep it";
             private const string LabelModFilter      = "##ModFilter";
             private const string TooltipModFilter    = "Filter mods for those containing the given substring.";
+            private const string TooltipHasConflicts  = "The Mod conflicts with another active mod.";
+            private const string TooltipIsDefective  = "The Mod contains a '.meta' file from TexTools import. It probably will not work correctly.";
             private const float  SelectorPanelWidth  = 240f;
             private const uint   DisabledModColor    = 0xFF666666;
             private const uint   ConflictingModColor = 0xFFAAAAFF;
+            private const uint   DefectiveModColor   = 0xFF4444FF;
 
             private static readonly Vector2 SelectorButtonSizes = new(60, 0);
             private static readonly string  ArrowUpString       = FontAwesomeIcon.ArrowUp.ToIconString();
@@ -212,14 +215,23 @@ namespace Penumbra.UI
                         continue;
 
                     var changedColour = false;
+                    string tooltip = null;
+
                     if( !settings.Enabled )
                     {
                         ImGui.PushStyleColor( ImGuiCol.Text, DisabledModColor );
                         changedColour = true;
                     }
+                    else if (settings.Mod.ContainsMetaFile)
+                    {
+                        ImGui.PushStyleColor( ImGuiCol.Text, DefectiveModColor );
+                        tooltip = TooltipIsDefective;
+                        changedColour = true;
+                    }
                     else if( settings.Mod.FileConflicts.Any() )
                     {
                         ImGui.PushStyleColor( ImGuiCol.Text, ConflictingModColor );
+                        tooltip = TooltipHasConflicts;
                         changedColour = true;
                     }
 
@@ -234,6 +246,9 @@ namespace Penumbra.UI
 
                     if( changedColour )
                         ImGui.PopStyleColor();
+
+                    if (tooltip != null && ImGui.IsItemHovered())
+                        ImGui.SetTooltip(tooltip);
 
                     if( selected )
                         SetSelection(modIndex, settings);
