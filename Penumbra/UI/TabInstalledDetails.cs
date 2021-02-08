@@ -51,7 +51,7 @@ namespace Penumbra.UI
             private const string TextDefaultGamePath     = "default";
             private const string LabelGamePathsEdit      = "Game Paths";
             private const string LabelGamePathsEditBox   = "##gamePathsEdit";
-            private static readonly string TooltipGamePathsEdit = $"Enter all game paths to add or remove, separated by '{GamePathsSeparator}'.\nUse '{TextDefaultGamePath}' to add the original file path.";
+            private static readonly string TooltipGamePathsEdit = $"Enter all game paths to add or remove, separated by '{GamePathsSeparator}'.\nUse '{TextDefaultGamePath}' to add the original file path.\nUse '{TextDefaultGamePath}-#' to skip the first # relative directories.";
             private static readonly string TooltipFilesTabEdit  = $"{TooltipFilesTab}\nRed Files are replaced in another group or a different option in this group, but not contained in the current option.";
 
             private const char  GamePathsSeparator      = ';';
@@ -328,11 +328,18 @@ namespace Penumbra.UI
                     return;
 
                 int? defaultIndex = null;
+                int  removeFolders = 0;
                 for (var i = 0; i < gamePaths.Length; ++i)
                 {
-                    if (gamePaths[i] == TextDefaultGamePath )
+                    var path = (string) gamePaths[i];
+                    if (path.StartsWith(TextDefaultGamePath) )
                     {
                         defaultIndex = i;
+                        if (path.Length > TextDefaultGamePath.Length
+                            && path[TextDefaultGamePath.Length] == '-' 
+                            && int.TryParse(path.Substring(TextDefaultGamePath.Length + 1), out var skips))
+                            removeFolders = skips;
+
                         break;
                     }
                 }
@@ -346,7 +353,7 @@ namespace Penumbra.UI
 
                     var relName = _fullFilenameList[i].relName;
                     if (defaultIndex != null)
-                        gamePaths[(int)defaultIndex] = new(relName);
+                        gamePaths[(int)defaultIndex] = new(relName, removeFolders);
 
                     if (remove && option.OptionFiles.TryGetValue(relName, out var setPaths))
                     {
