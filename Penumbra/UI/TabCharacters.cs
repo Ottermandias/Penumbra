@@ -74,10 +74,10 @@ namespace Penumbra.UI
                 ImGui.SameLine();
                 if (ImGui.Button("Delete") && _currentChar < List.Count)
                 {
-                    List.Remove(List.ElementAt(_currentChar).Key);
                     try
                     {
                         var name = List.ElementAt(_currentChar).Key;
+                        List.Remove(name);
                         var file = CharacterSettingsFile(name);
                         _base._plugin.ActorWatcher.RemovePlayerFromWatch(name);
                         if (file.Exists)
