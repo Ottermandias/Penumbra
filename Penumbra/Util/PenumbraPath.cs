@@ -1,5 +1,6 @@
 using System.IO;
 using System;
+using System.Linq;
 
 public struct RelPath : IComparable
 {
@@ -72,7 +73,21 @@ public struct GamePath : IComparable
             _path = null;
     }
 
-    public GamePath(RelPath relPath) => _path = relPath ? Lower(ReplaceSlash(relPath)) : null;
+    public GamePath(RelPath relPath, int skipFolders = 0)
+    {
+        string p = relPath;
+        if (p == null)
+            _path = null;
+        else
+        {
+            if (skipFolders > 0)
+                p = string.Join("\\", p.Split('\\').Skip(skipFolders));
+            if (p == string.Empty)
+                _path = null;
+            else
+                _path = Lower(ReplaceSlash(p));
+        }
+    }
 
     private static bool   CheckPre(FileInfo file, DirectoryInfo baseDir)  => file.FullName.StartsWith(baseDir.FullName) && file.FullName.Length < MaxGamePathLength;
     private static string Substring(FileInfo file, DirectoryInfo baseDir) => file.FullName.Substring(baseDir.FullName.Length);
@@ -84,6 +99,18 @@ public struct GamePath : IComparable
     public static implicit operator bool(GamePath gamePath)   => gamePath._path != null;
     public static implicit operator string(GamePath GamePath) => GamePath._path;
     public static explicit operator GamePath(string GamePath) => new(GamePath);
+
+    public string Filename()
+    {
+        if( _path == null )
+            return null;
+        var idx = _path.LastIndexOf("/");
+        if (idx == -1)
+            return _path;
+        if (idx == _path.Length - 1)
+            return null;
+        return _path.Substring(idx + 1);
+    }
 
     public int CompareTo(object rhs)
     {
