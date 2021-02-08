@@ -17,7 +17,7 @@ namespace Penumbra.Models
         private readonly ModMeta       _mod;
         private SHA256                 _hasher = null;
 
-        private Dictionary<long, List<FileInfo>> filesBySize;
+        private readonly Dictionary<long, List<FileInfo>> _filesBySize;
 
         private ref SHA256 Sha()
         {
@@ -28,9 +28,9 @@ namespace Penumbra.Models
 
         private Deduplicator(DirectoryInfo baseDir, ModMeta mod)
         {
-            this._baseDir       = baseDir;
-            this._mod           = mod;
-            filesBySize        = new();
+            _baseDir       = baseDir;
+            _mod           = mod;
+            _filesBySize    = new();
 
             BuildDict();  
         }
@@ -40,10 +40,10 @@ namespace Penumbra.Models
             foreach( var file in _baseDir.EnumerateFiles( "*.*", SearchOption.AllDirectories ) )
             {
                 var fileLength = file.Length;
-                if (filesBySize.TryGetValue(fileLength, out var files))
+                if (_filesBySize.TryGetValue(fileLength, out var files))
                     files.Add(file);
                 else
-                    filesBySize[fileLength] = new(){ file };
+                    _filesBySize[fileLength] = new(){ file };
             }
         }
 
@@ -51,7 +51,7 @@ namespace Penumbra.Models
         {
             var dedup = new Deduplicator(baseDir, mod);
 
-            foreach (var pair in dedup.filesBySize)
+            foreach (var pair in dedup._filesBySize)
             {
                 if (pair.Value.Count < 2)
                     continue;
@@ -313,7 +313,11 @@ namespace Penumbra.Models
                         if (kvp.Value.Count == 0 || (string) kvp.Value.ElementAt(0) == new GamePath(kvp.Key))
                             required.OptionFiles.Remove(kvp.Key);
                     }
+                    if (required.OptionFiles.Count == 0)
+                        info.Options.RemoveAt(requiredIdx);
                 }
+                if (info.Options.Count == 0)
+                    meta.Groups.Remove(Duplicates);
             }
 
             ClearEmptySubDirectories(baseDir);
