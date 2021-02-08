@@ -42,6 +42,7 @@ namespace Penumbra.UI
 
             _plugin.ModManager.DiscoverMods( _plugin.Configuration.CurrentCollection );
             _menu._effectiveTab.RebuildFileList(_plugin.Configuration.ShowAdvanced);
+            _menu._installedTab._selector.ResetModNamesLower();
         }
     }
 }
