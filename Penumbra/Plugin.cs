@@ -1,5 +1,4 @@
 using System.Linq;
-using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Actors.Types;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;

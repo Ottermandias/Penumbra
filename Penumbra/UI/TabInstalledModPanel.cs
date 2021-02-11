@@ -251,6 +251,14 @@ namespace Penumbra.UI
                 }
             }
 
+            private void DrawFillItemsButton()
+            {
+                if (ImGui.Button("Fill Items"))
+                {
+                    var items = new ItemFiller(_base._plugin.PluginInterface).RunEquip(Mod.Mod.ModFiles.Select(f => new GamePath(f, Mod.Mod.ModBasePath)));
+                }
+            }
+
             private void DrawEditLine()
             {
                 DrawOpenModFolderButton();
@@ -262,6 +270,8 @@ namespace Penumbra.UI
                 DrawDeduplicateButton();
                 ImGui.SameLine();
                 DrawNormalizeButton();
+                ImGui.SameLine();
+                DrawFillItemsButton();
             }
             #endregion
 

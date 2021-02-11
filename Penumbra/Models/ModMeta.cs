@@ -100,6 +100,15 @@ namespace Penumbra.Models
             return doNotAdd;
         }
 
+        public IEnumerable<GamePath> GetAllPossiblePathsForFile(RelPath relPath)
+        {
+            return Groups.Values
+                .SelectMany( G => G.Options )
+                .Select( O => { if (O.OptionFiles.TryGetValue(relPath, out var paths)) return paths; return new HashSet<GamePath>(); } )
+                .SelectMany( P => P )
+                .DefaultIfEmpty(new GamePath(relPath));
+        }
+
         public (bool configChanged, HashSet<GamePath> paths) GetFilesForConfig(RelPath relPath, ModSettings settings)
         {
             var doNotAdd = false;
