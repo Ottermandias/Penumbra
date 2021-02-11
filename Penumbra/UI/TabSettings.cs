@@ -65,7 +65,10 @@ namespace Penumbra.UI
                 {
                     _config.IsEnabled = enabled;
                     _configChanged = true;
-                    _base._plugin.ActorRefresher.RedrawAll(enabled ? Redraw.WithSettings : Redraw.WithoutSettings);
+                    if (enabled)
+                        _base._plugin.ActorRefresher.UnloadAtOnceRedrawWithSettings();
+                    else
+                        _base._plugin.ActorRefresher.UnloadAtOnceRedrawWithoutSettings();
                 }
             }
 

@@ -131,7 +131,7 @@ namespace Penumbra
             var args = rawArgs.Split( ' ' );
             if( args.Length > 0 && args[ 0 ].Length > 0 )
             {
-                switch( args[ 0 ] )
+                switch( args[ 0 ].ToLowerInvariant() )
                 {
                     case "reload":
                     {
@@ -149,6 +149,9 @@ namespace Penumbra
                             ActorRefresher.RedrawAll(Redraw.WithSettings);
                         break;
                     }
+                    case "unload":
+                        ActorRefresher.UnloadAtOnceRedrawWithSettings();
+                        break;
                 }
 
                 return;

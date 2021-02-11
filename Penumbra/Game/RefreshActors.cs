@@ -5,6 +5,7 @@ using Dalamud.Plugin;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Penumbra
 {
@@ -12,7 +13,10 @@ namespace Penumbra
     {
         WithoutSettings,
         WithSettings,
-        OnlyWithSettings
+        OnlyWithSettings,
+        Unload,
+        RedrawWithoutSettings,
+        RedrawWithSettings,
     }
 
     public class ActorRefresher
@@ -35,7 +39,6 @@ namespace Penumbra
             _pi   = pi; 
             _mods = mods;
         }
-
 
         private void ChangeSettings(string name)
         {
@@ -95,13 +98,37 @@ namespace Penumbra
                 if (actor == null)
                     return;
 
-                if (id.s != Redraw.WithoutSettings)
+                switch (id.s)
+                {
+                case Redraw.Unload:
+                    WriteInvisible(actor.Address + RenderModeOffset);
+                    _currentFrame = 0;
+                    break;
+                case Redraw.RedrawWithSettings:
+                    ChangeSettings(actor.Name); 
+                    ++_currentFrame;
+                    break;
+                case Redraw.RedrawWithoutSettings:
+                    WriteVisible(actor.Address + RenderModeOffset);
+                    _currentFrame = 0;
+                    break;
+                case Redraw.WithoutSettings:
+                    WriteInvisible(actor.Address + RenderModeOffset);
+                    ++_currentFrame;
+                    break;
+                case Redraw.WithSettings:       
+                    ChangeSettings(actor.Name); 
+                    WriteInvisible(actor.Address + RenderModeOffset);
+                    ++_currentFrame;
+                    break;
+                case Redraw.OnlyWithSettings:   
                     ChangeSettings(actor.Name);
-                if (id.s == Redraw.OnlyWithSettings && !_changedSettings)
-                    return;
-
-                WriteInvisible(actor.Address + RenderModeOffset);
-                ++_currentFrame;
+                    if (!_changedSettings)
+                        return;
+                    WriteInvisible(actor.Address + RenderModeOffset);
+                    ++_currentFrame;
+                    break;
+                }
             }
             else
                 _pi.Framework.OnUpdateEvent -= OnUpdateEvent;
@@ -187,6 +214,32 @@ namespace Penumbra
         {
             foreach (var A in _pi.ClientState.Actors)
                 RedrawActor(A, settings);
+        }
+
+        private void UnloadAll()
+        { 
+            foreach (var A in _pi.ClientState.Actors)
+                WriteInvisible(A.Address + RenderModeOffset);
+        }
+
+        private void RedrawAllWithoutSettings()
+        {
+            foreach (var A in _pi.ClientState.Actors)
+                WriteVisible(A.Address + RenderModeOffset);
+        }
+
+        public async void UnloadAtOnceRedrawWithSettings()
+        {
+            UnloadAll();
+            await Task.Delay(200);
+            RedrawAll(Redraw.RedrawWithSettings);
+        }
+
+        public async void UnloadAtOnceRedrawWithoutSettings()
+        {
+            UnloadAll();
+            await Task.Delay(200);
+            RedrawAllWithoutSettings();
         }
     }
 }
