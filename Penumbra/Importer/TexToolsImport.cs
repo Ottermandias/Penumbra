@@ -200,7 +200,7 @@ namespace Penumbra.Importer
 
             var newModFolder = new DirectoryInfo(
                 Path.Combine( _outDirectory.FullName,
-                    Path.GetFileNameWithoutExtension( modList.Name )
+                    Path.GetFileNameWithoutExtension( modList.Name ).ReplaceInvalidPathSymbols()
                 )
             );
             newModFolder.Create();
@@ -214,10 +214,12 @@ namespace Penumbra.Importer
             // Iterate through all pages
             foreach( var page in modList.ModPackPages)
             {
-                foreach(var group in page.ModGroups) {
-                    var groupFolder = new DirectoryInfo(Path.Combine(newModFolder.FullName, group.GroupName));
-                    foreach(var option in group.OptionList) {
-                        var optionFolder = new DirectoryInfo( Path.Combine( groupFolder.FullName, option.Name ) );
+                foreach(var group in page.ModGroups)
+                {
+                    var groupFolder = new DirectoryInfo(Path.Combine(newModFolder.FullName, group.GroupName.ReplaceInvalidPathSymbols()));
+                    foreach(var option in group.OptionList)
+                    {
+                        var optionFolder = new DirectoryInfo( Path.Combine( groupFolder.FullName, option.Name.ReplaceInvalidPathSymbols()) );
                         ExtractSimpleModList( optionFolder, option.ModsJsons, modData );
                     }
                     AddMeta(newModFolder, groupFolder, group, modMeta);
@@ -246,7 +248,7 @@ namespace Penumbra.Importer
                     OptionDesc = string.IsNullOrEmpty(opt.Description) ? "" : opt.Description,
                     OptionFiles = new()
                 };
-                var optDir = new DirectoryInfo(Path.Combine( groupFolder.FullName, opt.Name));
+                var optDir = new DirectoryInfo(Path.Combine( groupFolder.FullName, opt.Name.ReplaceInvalidPathSymbols()));
                 if (optDir.Exists)
                 {
                     foreach ( var file in optDir.EnumerateFiles("*.*", SearchOption.AllDirectories) ) 
