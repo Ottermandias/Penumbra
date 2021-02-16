@@ -18,7 +18,7 @@ namespace Penumbra.UI
             private static readonly Vector2 WindowPosOffset = new( Padding + Width, Padding + Height );
 
             private const ImGuiWindowFlags ButtonFlags =
-                  ImGuiWindowFlags.AlwaysAutoResize
+                ImGuiWindowFlags.AlwaysAutoResize
                 | ImGuiWindowFlags.NoBackground
                 | ImGuiWindowFlags.NoDecoration
                 | ImGuiWindowFlags.NoMove

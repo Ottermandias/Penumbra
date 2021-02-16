@@ -23,6 +23,7 @@ namespace Penumbra.UI
             private const string ButtonEditJson       = "Edit JSON";
             private const string ButtonReloadJson     = "Reload JSON";
             private const string ButtonDeduplicate    = "Deduplicate";
+            private const string ButtonNormalize      = "Normalize";
             private const string TooltipOpenModFolder = "Open the directory containing this mod in your default file explorer.";
             private const string TooltipEditJson      = "Open the JSON configuration file in your default application for .json.";
             private const string TooltipReloadJson    = "Reload the configuration of all mods.";
@@ -30,6 +31,7 @@ namespace Penumbra.UI
             private const string TooltipDeduplicate =
                 "Try to find identical files and remove duplicate occurences to reduce the mods disk size.\n" +
                 "Introduces an invisible single-option Group \"Duplicates\".";
+            private const string TooltipNormalize = "Try to reduce unnecessary options or subdirectories to default options if possible.";
 
             private const           float   HeaderLineDistance = 10f;
             private static readonly Vector4 GreyColor          = new( 1f, 1f, 1f, 0.66f );
@@ -238,7 +240,7 @@ namespace Penumbra.UI
             {
                 if( ImGui.Button( ButtonDeduplicate ) )
                 {
-                    new Deduplicator( Mod.Mod.ModBasePath, Meta ).Run();
+                    Deduplicator.Run( Mod.Mod.ModBasePath, Meta );
                     _selector.SaveCurrentMod();
                     Mod.Mod.RefreshModFiles();
                     _base._plugin.ModManager.CalculateEffectiveFileList();
@@ -251,6 +253,23 @@ namespace Penumbra.UI
                 }
             }
 
+            private void DrawNormalizeButton()
+            {
+                if( ImGui.Button( ButtonNormalize ) )
+                {
+                    Deduplicator.RemoveUnnecessaryEntries( Mod.Mod.ModBasePath, Meta );
+                    _selector.SaveCurrentMod();
+                    Mod.Mod.RefreshModFiles();
+                    _base._plugin.ModManager.CalculateEffectiveFileList();
+                    _base._menu.EffectiveTab.RebuildFileList( _base._plugin.Configuration.ShowAdvanced );
+                }
+
+                if( ImGui.IsItemHovered() )
+                {
+                    ImGui.SetTooltip( TooltipNormalize );
+                }
+            }
+
             private void DrawEditLine()
             {
                 DrawOpenModFolderButton();
@@ -260,6 +279,8 @@ namespace Penumbra.UI
                 DrawReloadJsonButton();
                 ImGui.SameLine();
                 DrawDeduplicateButton();
+                ImGui.SameLine();
+                DrawNormalizeButton();
             }
 
             public void Draw()
