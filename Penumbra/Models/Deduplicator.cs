@@ -235,9 +235,13 @@ namespace Penumbra.Models
             }
         }
 
-        private static bool FileIsInAnyGroup( ModMeta meta, RelPath relPath )
+        private static bool FileIsInAnyGroup( ModMeta meta, RelPath relPath, bool exceptDuplicates )
         {
-            return meta.Groups.Values.SelectMany( group => group.Options )
+            var groupEnumerator = exceptDuplicates
+                ? meta.Groups.Values.Where( G => G.GroupName != Duplicates )
+                : meta.Groups.Values;
+
+            return groupEnumerator.SelectMany( group => group.Options )
                 .Any( option => option.OptionFiles.ContainsKey( relPath ) );
         }
 
@@ -321,7 +325,7 @@ namespace Penumbra.Models
                     else if( MoveFile( meta, baseDir, path, p ) )
                     {
                         newPath[ path ] = gamePath;
-                        if( FileIsInAnyGroup( meta, p ) )
+                        if( FileIsInAnyGroup( meta, p, false ) )
                         {
                             FindOrCreateDuplicates( meta ).AddFile( p, gamePath );
                         }
@@ -331,7 +335,44 @@ namespace Penumbra.Models
                 }
             }
 
+            CleanUpDuplicates( meta );
             ClearEmptySubDirectories( baseDir );
+        }
+
+        private static void CleanUpDuplicates( ModMeta meta )
+        {
+            if( meta.Groups == null || !meta.Groups.TryGetValue( Duplicates, out var info ) )
+            {
+                return;
+            }
+
+            var requiredIdx = info.Options.FindIndex( O => O.OptionName == Required );
+            if( requiredIdx >= 0 )
+            {
+                var required = info.Options[ requiredIdx ];
+                foreach( var kvp in required.OptionFiles.ToArray() )
+                {
+                    if( kvp.Value.Count > 1 || FileIsInAnyGroup( meta, kvp.Key, true ) )
+                    {
+                        continue;
+                    }
+
+                    if( kvp.Value.Count == 0 || kvp.Value.First().CompareTo( new GamePath( kvp.Key ) ) == 0 )
+                    {
+                        required.OptionFiles.Remove( kvp.Key );
+                    }
+                }
+
+                if( required.OptionFiles.Count == 0 )
+                {
+                    info.Options.RemoveAt( requiredIdx );
+                }
+            }
+
+            if( info.Options.Count == 0 )
+            {
+                meta.Groups.Remove( Duplicates );
+            }
         }
     }
 }
