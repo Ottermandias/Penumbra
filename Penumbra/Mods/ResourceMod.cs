@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using Dalamud.Plugin;
 using Penumbra.Models;
+using Penumbra.Util;
 
 namespace Penumbra.Mods
 {
@@ -13,7 +14,7 @@ namespace Penumbra.Mods
 
         public List< FileInfo > ModFiles { get; } = new();
 
-        public Dictionary< string, List< string > > FileConflicts { get; } = new();
+        public Dictionary< string, List< GamePath > > FileConflicts { get; } = new();
 
         public void RefreshModFiles()
         {
@@ -32,14 +33,9 @@ namespace Penumbra.Mods
                     ModFiles.Add( file );
                 }
             }
-
-            // Only add if not in a sub-folder, otherwise it was already added.
-            //foreach( var pair in Meta.Groups.FileToGameAndGroup )
-            //    if (pair.Key.IndexOfAny(new[]{'/', '\\'}) < 0)
-            //        ModFiles.Add( new FileInfo(Path.Combine(ModBasePath.FullName, pair.Key)) );
         }
 
-        public void AddConflict( string modName, string path )
+        public void AddConflict( string modName, GamePath path )
         {
             if( FileConflicts.TryGetValue( modName, out var arr ) )
             {
@@ -51,10 +47,7 @@ namespace Penumbra.Mods
                 return;
             }
 
-            FileConflicts[ modName ] = new List< string >
-            {
-                path
-            };
+            FileConflicts[ modName ] = new List< GamePath > { path };
         }
     }
 }

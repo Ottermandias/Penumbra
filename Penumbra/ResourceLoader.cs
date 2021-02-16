@@ -122,7 +122,7 @@ namespace Penumbra
             bool isUnknown
         )
         {
-            var gameFsPath = Marshal.PtrToStringAnsi( new IntPtr( pPath ) );
+            var gameFsPath = GamePath.GenerateUnchecked( Marshal.PtrToStringAnsi( new IntPtr( pPath ) ) );
 
             if( LogAllFiles )
             {

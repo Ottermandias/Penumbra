@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using Penumbra.Util;
 
 namespace Penumbra.Models
 {
@@ -19,7 +20,7 @@ namespace Penumbra.Models
 
         public List< string > ChangedItems { get; set; } = new();
 
-        public Dictionary< string, string > FileSwaps { get; } = new();
+        public Dictionary< GamePath, GamePath > FileSwaps { get; } = new();
 
         public Dictionary< string, InstallerInfo > Groups { get; set; } = new();
 
@@ -40,7 +41,7 @@ namespace Penumbra.Models
             }
             catch( Exception )
             {
-                return null;
+                return new ModMeta{ Name = filePath };
                 // todo: handle broken mods properly
             }
         }
