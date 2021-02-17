@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Dalamud.Plugin;
 using Penumbra.Util;
@@ -96,6 +97,10 @@ namespace Penumbra.Game
         , { "wrs", EquipSlot.Wrists }
         };
 
+        public static readonly Dictionary<EquipSlot, string> EquipToSlot
+            = SlotToEquip.Where( kvp => kvp.Value != EquipSlot.RingL )
+                .ToDictionary( kvp => kvp.Value, kvp => kvp.Key  );
+
         public static readonly Dictionary<string, Customization> SlotToCustomization = new()
         { { "fac", Customization.Face      }
         , { "iri", Customization.Iris      }
@@ -105,6 +110,9 @@ namespace Penumbra.Game
         , { "etc", Customization.Etc       }
         };
 
+        public static readonly Dictionary<Customization, string> CustomizationToSlot
+            = SlotToCustomization.ToDictionary( kvp => kvp.Value, kvp => kvp.Key  );
+
         public static readonly Dictionary<string, BodySlot> SlotToBodyslot = new()
         { { "zear", BodySlot.Zear }
         , { "face", BodySlot.Face }
@@ -113,8 +121,10 @@ namespace Penumbra.Game
         , { "tail", BodySlot.Tail }
         };
 
+        public static readonly Dictionary<BodySlot, string> BodyslotToSlot
+            = SlotToBodyslot.ToDictionary( kvp => kvp.Value, kvp => kvp.Key  );
 
-        public static readonly Dictionary<string, (Gender, Race)> IdToRace = new()
+        public static readonly Dictionary<string, (Gender, Race)> IdStringToRace = new()
         { { "0101", (Gender.Male,      Race.Midlander)  }
         , { "0104", (Gender.MaleNpc,   Race.Midlander)  }
         , { "0201", (Gender.Female,    Race.Midlander)  }
@@ -150,6 +160,15 @@ namespace Penumbra.Game
         , { "9104", (Gender.MaleNpc,   Race.Unknown)    }
         , { "9204", (Gender.FemaleNpc, Race.Unknown)    }
         };
+
+        public static readonly Dictionary<ushort, (Gender, Race)> IdToRace
+            = IdStringToRace.ToDictionary( kvp => ushort.Parse(kvp.Key), kvp => kvp.Value );
+
+        public static readonly Dictionary<(Gender, Race), ushort> RaceToId
+            = IdToRace.ToDictionary( kvp => kvp.Value, kvp => kvp.Key );
+
+        public static readonly Dictionary<(Gender, Race), string> RaceToIdString
+            = IdStringToRace.ToDictionary( kvp => kvp.Value, kvp => kvp.Key );
         // @formatter:on
 
         public static ObjectType PathToObjectType( GamePath path )
@@ -248,7 +267,7 @@ namespace Penumbra.Game
                     return ret;
                 }
 
-                var (gender, race) = IdToRace[ groups[ "race" ].Value ];
+                var (gender, race) = IdStringToRace[ groups[ "race" ].Value ];
                 ret.Gender         = gender;
                 ret.Race           = race;
                 ret.Slot           = SlotToEquip[ groups[ "slot" ].Value ];
@@ -374,7 +393,7 @@ namespace Penumbra.Game
                     return ret;
                 }
 
-                var (gender, race) = IdToRace[ groups[ "race" ].Value ];
+                var (gender, race) = IdStringToRace[ groups[ "race" ].Value ];
                 ret.Gender         = gender;
                 ret.Race           = race;
                 ret.BodySlot       = SlotToBodyslot[ groups[ "type" ].Value ];

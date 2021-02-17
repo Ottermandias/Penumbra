@@ -5,6 +5,7 @@ using EmbedIO;
 using EmbedIO.WebApi;
 using Penumbra.API;
 using Penumbra.Game;
+using Penumbra.Importer;
 using Penumbra.Mods;
 using Penumbra.UI;
 
@@ -38,6 +39,7 @@ namespace Penumbra
 
             Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             Configuration.Initialize( PluginInterface );
+            new DataFetcher( PluginInterface, new(Configuration.CurrentCollection) );
 
             GameUtils = new GameUtils( PluginInterface );
 

@@ -8,7 +8,7 @@ namespace Penumbra
         public static T[] Slice< T >( this T[] source, int index, int length )
         {
             var slice = new T[length];
-            Array.Copy( source, index, slice, 0, length );
+            Array.Copy( source, index * length, slice, 0, length );
             return slice;
         }
 

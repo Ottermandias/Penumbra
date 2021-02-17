@@ -1,10 +1,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using Dalamud.Plugin;
+using Newtonsoft.Json;
 using Penumbra.Game;
 using Penumbra.Models;
 using Penumbra.Util;
+using Swan.Formatters;
 
 namespace Penumbra.Mods
 {
@@ -48,6 +51,8 @@ namespace Penumbra.Mods
                     if( file.Extension.ToLowerInvariant() == ".meta" )
                     {
                         ContainsMetaFile = true;
+                        var meta = new Importer.TexToolsMeta( File.ReadAllBytes( file.FullName ) );
+                        File.WriteAllText( file.FullName.Replace( ".meta", ".ttm" ), JsonConvert.SerializeObject(meta, Formatting.Indented) );
                     }
                     else
                     {

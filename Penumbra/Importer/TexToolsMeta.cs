@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
+using Newtonsoft.Json;
 
 namespace Penumbra.Importer
 {
@@ -35,6 +37,7 @@ namespace Penumbra.Importer
             return builder.ToString();
         }
 
+        [StructLayout( LayoutKind.Sequential, Pack = 1 )]
         public readonly struct EqpEntry
         {
             public static unsafe int Size => sizeof( EqpEntry );
@@ -47,6 +50,7 @@ namespace Penumbra.Importer
             }
         }
 
+        [StructLayout( LayoutKind.Sequential, Pack = 1 )]
         public readonly struct EstEntry
         {
             public static unsafe int Size => sizeof( EstEntry );
@@ -63,6 +67,7 @@ namespace Penumbra.Importer
             }
         }
 
+        [StructLayout( LayoutKind.Sequential, Pack = 1 )]
         public readonly struct GmpEntry
         {
             public static unsafe int Size => sizeof( GmpEntry );
@@ -85,11 +90,17 @@ namespace Penumbra.Importer
             }
         }
 
+        [StructLayout( LayoutKind.Sequential, Pack = 1 )]
         public readonly struct EqdpEntry
         {
             public static unsafe int Size => sizeof( EqdpEntry );
             public readonly uint RaceId;
             public readonly byte EntryData;
+
+            [JsonIgnore]
+            public bool Bit1 => (EntryData & 0b01) == 0b01;
+            [JsonIgnore]
+            public bool Bit2 => (EntryData & 0b10) == 0b10;
 
             public EqdpEntry( byte[] data )
             {
@@ -99,6 +110,7 @@ namespace Penumbra.Importer
             }
         }
 
+        [StructLayout( LayoutKind.Sequential, Pack = 1 )]
         public readonly struct ImcEntry
         {
             public static unsafe int Size => sizeof( ImcEntry );
