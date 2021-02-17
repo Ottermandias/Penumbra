@@ -50,6 +50,9 @@
             <HintPath>$(AppData)\XIVLauncher\addon\Hooks\Lumina.dll</HintPath>
             <Private>False</Private>
         </Reference>
+		<Reference Include="Lumina.Generated">
+			<HintPath>$(appdata)\XIVLauncher\addon\Hooks\Lumina.Generated.dll</HintPath>
+		</Reference>
     </ItemGroup>
     
     <ItemGroup>

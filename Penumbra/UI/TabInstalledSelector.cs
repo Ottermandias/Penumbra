@@ -25,13 +25,19 @@ namespace Penumbra.UI
             private const string TooltipIsDefective =
                 "The Mod contains a '.meta' file from TexTools import. It probably will not work correctly.";
 
-            private const string DialogDeleteMod     = "PenumbraDeleteMod";
-            private const string ButtonYesDelete     = "Yes, delete it";
-            private const string ButtonNoDelete      = "No, keep it";
-            private const float  SelectorPanelWidth  = 240f;
-            private const uint   DisabledModColor    = 0xFF666666;
-            private const uint   ConflictingModColor = 0xFFAAAAFF;
-            private const uint   DefectiveModColor   = 0xFF4444FF;
+            private const string TooltipHasUnreloadableMods =
+                "The Mod contains files that are not reloaded by the client.\n" +
+                "It will probably only work correctly if the mod is activated before you enter character selection.\n" +
+                "You can try toggling the Enable Mods checkmark off and on, but you may have to restart the game after activation.";
+
+            private const string DialogDeleteMod      = "PenumbraDeleteMod";
+            private const string ButtonYesDelete      = "Yes, delete it";
+            private const string ButtonNoDelete       = "No, keep it";
+            private const float  SelectorPanelWidth   = 240f;
+            private const uint   DisabledModColor     = 0xFF666666;
+            private const uint   ConflictingModColor  = 0xFFAAAAFF;
+            private const uint   DefectiveModColor    = 0xFF4444FF;
+            private const uint   UnreloadableModColor = 0xFFAAFFFF;
 
             private static readonly Vector2 SelectorButtonSizes = new( 60, 0 );
             private static readonly string  ArrowUpString       = FontAwesomeIcon.ArrowUp.ToIconString();
@@ -242,6 +248,12 @@ namespace Penumbra.UI
                     {
                         ImGui.PushStyleColor( ImGuiCol.Text, ConflictingModColor );
                         tooltip       = TooltipHasConflicts;
+                        changedColour = true;
+                    }
+                    else if( settings.Mod.ContainsUnreloadableFile )
+                    {
+                        ImGui.PushStyleColor( ImGuiCol.Text, UnreloadableModColor );
+                        tooltip       = TooltipHasUnreloadableMods;
                         changedColour = true;
                     }
 

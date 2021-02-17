@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Dalamud.Plugin;
+using Penumbra.Game;
 using Penumbra.Models;
 using Penumbra.Util;
 
@@ -17,6 +19,16 @@ namespace Penumbra.Mods
         public Dictionary< string, List< GamePath > > FileConflicts { get; } = new();
 
         public bool ContainsMetaFile { get; private set; }
+        public bool ContainsUnreloadableFile { get; private set; }
+
+        public HashSet< ObjectInfo > ChangedObjectInformation { get; } = new();
+
+        private void CheckForUnreloadables()
+        {
+            ContainsUnreloadableFile = ChangedObjectInformation
+                .Any( info => GamePathParser.IsSkinTexture( info )
+                    || GamePathParser.IsTailTexture( info ) );
+        }
 
         public void RefreshModFiles()
         {
@@ -40,9 +52,14 @@ namespace Penumbra.Mods
                     else
                     {
                         ModFiles.Add( file );
+                        ChangedObjectInformation.UnionWith(
+                            Meta.GetAllPossiblePathsForFile( new RelPath( file, ModBasePath ) )
+                                .Select( GamePathParser.GetFileInfo )
+                        );
                     }
                 }
             }
+            CheckForUnreloadables();
         }
 
         public void AddConflict( string modName, GamePath path )

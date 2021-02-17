@@ -27,6 +27,15 @@ namespace Penumbra.Models
         [JsonIgnore]
         public bool HasGroupWithConfig { get; set; } = false;
 
+        public IEnumerable< GamePath > GetAllPossiblePathsForFile( RelPath relPath )
+        {
+            return Groups.Values
+                .SelectMany( G => G.Options )
+                .Select( O => O.OptionFiles.TryGetValue( relPath, out var paths ) ? paths : new HashSet< GamePath >() )
+                .SelectMany( P => P )
+                .DefaultIfEmpty( new GamePath( relPath ) );
+        }
+
         public static ModMeta LoadFromFile( string filePath )
         {
             try
@@ -41,7 +50,7 @@ namespace Penumbra.Models
             }
             catch( Exception )
             {
-                return new ModMeta{ Name = filePath };
+                return new ModMeta { Name = filePath };
                 // todo: handle broken mods properly
             }
         }

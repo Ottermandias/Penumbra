@@ -1,9 +1,11 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Plugin;
 using ImGuiNET;
 using Penumbra.Models;
+using Penumbra.Util;
 
 namespace Penumbra.UI
 {
@@ -24,6 +26,7 @@ namespace Penumbra.UI
             private const string ButtonReloadJson     = "Reload JSON";
             private const string ButtonDeduplicate    = "Deduplicate";
             private const string ButtonNormalize      = "Normalize";
+            private const string ButtonFillItems      = "Fill Items";
             private const string TooltipOpenModFolder = "Open the directory containing this mod in your default file explorer.";
             private const string TooltipEditJson      = "Open the JSON configuration file in your default application for .json.";
             private const string TooltipReloadJson    = "Reload the configuration of all mods.";
@@ -31,6 +34,7 @@ namespace Penumbra.UI
             private const string TooltipDeduplicate =
                 "Try to find identical files and remove duplicate occurences to reduce the mods disk size.\n" +
                 "Introduces an invisible single-option Group \"Duplicates\".";
+
             private const string TooltipNormalize = "Try to reduce unnecessary options or subdirectories to default options if possible.";
 
             private const           float   HeaderLineDistance = 10f;
@@ -270,6 +274,16 @@ namespace Penumbra.UI
                 }
             }
 
+            private void DrawFillItemsButton()
+            {
+                if( ImGui.Button( ButtonFillItems ) )
+                {
+                    var items = new Game.ItemFiller( _base._plugin.PluginInterface )
+                        .RunEquip( Mod.Mod.ModFiles.Select( f => new GamePath( f, Mod.Mod.ModBasePath ) ) );
+                    // TODO
+                }
+            }
+
             private void DrawEditLine()
             {
                 DrawOpenModFolderButton();
@@ -281,6 +295,8 @@ namespace Penumbra.UI
                 DrawDeduplicateButton();
                 ImGui.SameLine();
                 DrawNormalizeButton();
+                ImGui.SameLine();
+                DrawFillItemsButton();
             }
 
             public void Draw()
