@@ -103,12 +103,6 @@ namespace Penumbra.Mods
             foreach( var (mod, settings) in Mods.GetOrderedAndEnabledModListWithSettings( _plugin.Configuration.InvertModListOrder ) )
             {
                 mod.FileConflicts?.Clear();
-                if( settings.Conf == null )
-                {
-                    settings.Conf = new Dictionary< string, int >();
-                    _plugin.ModManager.Mods.Save();
-                }
-
                 ProcessModFiles( registeredFiles, mod, settings );
                 ProcessSwappedFiles( registeredFiles, mod, settings );
             }
@@ -140,31 +134,18 @@ namespace Penumbra.Mods
 
         private void ProcessModFiles( Dictionary< GamePath, string > registeredFiles, ResourceMod mod, ModInfo settings )
         {
+            if( settings.FixInvalidSettings() )
+            {
+                _plugin.ModManager.Mods.Save();
+            }
+
             foreach( var file in mod.ModFiles )
             {
                 RelPath relativeFilePath = new( file, mod.ModBasePath );
                 var     doNotAdd         = false;
-                foreach( var group in mod.Meta.Groups.Values )
+                foreach( var group in mod.Meta.Groups.Values.Where( group => group.Options.Count > 0) )
                 {
-                    if( !settings.Conf.TryGetValue( group.GroupName, out var setting )
-                        || group.SelectionType == SelectType.Single
-                        && settings.Conf[ group.GroupName ] >= group.Options.Count )
-                    {
-                        settings.Conf[ group.GroupName ] = 0;
-                        _plugin.ModManager.Mods.Save();
-                        setting = 0;
-                    }
-
-                    if( group.Options.Count == 0 )
-                    {
-                        continue;
-                    }
-
-                    if( group.SelectionType == SelectType.Multi )
-                    {
-                        settings.Conf[ group.GroupName ] &= ( 1 << group.Options.Count ) - 1;
-                    }
-
+                    var setting = settings.Settings[ group.GroupName ];
                     HashSet< GamePath > paths;
                     switch( group.SelectionType )
                     {

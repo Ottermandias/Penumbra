@@ -141,7 +141,6 @@ namespace Penumbra.Mods
             Save();
         }
 
-
         public ModInfo FindModSettings( string name )
         {
             var settings = ModSettings.FirstOrDefault(
@@ -162,7 +161,7 @@ namespace Penumbra.Mods
                 Enabled    = true,
                 Mod        = mod
             };
-
+            entry.FixInvalidSettings();
 #if DEBUG
             PluginLog.Information( "creating mod settings {ModName}", entry.FolderName );
 #endif
@@ -171,12 +170,14 @@ namespace Penumbra.Mods
             return entry;
         }
 
+
         public ModInfo FindOrCreateModSettings( ResourceMod mod )
         {
             var settings = FindModSettings( mod.ModBasePath.Name );
             if( settings != null )
             {
                 settings.Mod = mod;
+                settings.FixInvalidSettings();
                 return settings;
             }
 
