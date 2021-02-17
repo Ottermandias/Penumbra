@@ -1,4 +1,5 @@
 using System.Linq;
+using Dalamud.Game.ClientState.Actors.Types;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
 using EmbedIO;
@@ -29,6 +30,7 @@ namespace Penumbra
         public GameUtils GameUtils { get; set; }
 
         public string PluginDebugTitleStr { get; private set; }
+        public ActorRefresher ActorRefresher { get; set; }
         public PlayerWatcher PlayerWatcher { get; set; }
 
         private WebServer _webServer;
@@ -40,11 +42,13 @@ namespace Penumbra
             Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             Configuration.Initialize( PluginInterface );
 
-            GameUtils    = new GameUtils( PluginInterface );
+            GameUtils     = new GameUtils( PluginInterface );
             PlayerWatcher = new PlayerWatcher( PluginInterface );
 
             ModManager = new ModManager( this );
             ModManager.DiscoverMods( Configuration.CurrentCollection );
+
+            ActorRefresher = new ActorRefresher( PluginInterface, ModManager );
 
             ResourceLoader = new ResourceLoader( this );
 
@@ -114,7 +118,7 @@ namespace Penumbra
             var args = rawArgs.Split( ' ' );
             if( args.Length > 0 && args[ 0 ].Length > 0 )
             {
-                switch( args[ 0 ] )
+                switch( args[ 0 ].ToLowerInvariant() )
                 {
                     case "reload":
                     {
@@ -128,16 +132,18 @@ namespace Penumbra
                     {
                         if( args.Length > 1 )
                         {
-                            RefreshActors.RedrawSpecific( PluginInterface.ClientState.Actors
-                                , PluginInterface.ClientState.Targets, string.Join( " ", args.Skip( 1 ) ) );
+                            ActorRefresher.RedrawActor( string.Join( " ", args.Skip( 1 ) ), Redraw.WithSettings );
                         }
                         else
                         {
-                            RefreshActors.RedrawAll( PluginInterface.ClientState.Actors );
+                            ActorRefresher.RedrawAll( Redraw.WithSettings );
                         }
 
                         break;
                     }
+                    case "unload":
+                        ActorRefresher.UnloadAtOnceRedrawWithSettings();
+                        break;
                 }
 
                 return;

@@ -4,20 +4,22 @@ using Dalamud.Game.ClientState.Actors;
 using Dalamud.Game.ClientState.Actors.Types;
 using Dalamud.Plugin;
 
-namespace Penumbra
+namespace Penumbra.Game
 {
     public class PlayerWatcher : IDisposable
     {
-        private const int ActorsPerFrame = 4;
+        private const int ActorsPerFrame     = 2;
+        private const int ActorListPlayerCap = 255;
 
         private readonly DalamudPluginInterface              _pi;
-        private readonly Dictionary< string, CharEquipment > _equip       = new();
+        private readonly Dictionary< string, CharEquipment > _equip = new();
         private          int                                 _frameTicker;
 
         public PlayerWatcher( DalamudPluginInterface pi )
             => _pi = pi;
 
         public delegate void OnActorChange( Actor which );
+
         public event OnActorChange ActorChanged;
 
         public void AddPlayerToWatch( string playerName )
@@ -27,6 +29,9 @@ namespace Penumbra
                 _equip[ playerName ] = new CharEquipment();
             }
         }
+
+        public void RemovePlayerFromWatch( string playerName )
+            => _equip.Remove( playerName );
 
         public void SetActorWatch( bool on )
         {
@@ -73,18 +78,21 @@ namespace Penumbra
             _frameTicker = 0;
         }
 
+        // Min(255, actorsLength)
+        private static int MinFrameTicker( int actorsLength )
+            => actorsLength & ActorListPlayerCap;
+
         public void OnFrameworkUpdate( object framework )
         {
             var actors = _pi.ClientState.Actors;
             for( var i = 0; i < ActorsPerFrame; ++i )
             {
-                _frameTicker = (_frameTicker < actors.Length - 2)
+                _frameTicker = _frameTicker < MinFrameTicker( actors.Length )
                     ? _frameTicker + 2
                     : 0;
 
                 var actor = actors[ _frameTicker ];
-                if( actor == null || actor.ObjectKind != ObjectKind.Player
-                    || actor.Name == null || actor.Name.Length == 0 )
+                if( (actor?.Name?.Length ?? 0) == 0 || actor.ObjectKind != ObjectKind.Player)
                 {
                     continue;
                 }

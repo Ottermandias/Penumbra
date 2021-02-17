@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ImGuiNET;
+using Penumbra.Game;
 
 namespace Penumbra.UI
 {
@@ -65,7 +66,14 @@ namespace Penumbra.UI
                 {
                     _config.IsEnabled = enabled;
                     _configChanged    = true;
-                    Game.RefreshActors.RedrawAll( _base._plugin.PluginInterface.ClientState.Actors );
+                    if( enabled )
+                    {
+                        _base._plugin.ActorRefresher.UnloadAtOnceRedrawWithSettings();
+                    }
+                    else
+                    {
+                        _base._plugin.ActorRefresher.UnloadAtOnceRedrawWithoutSettings();
+                    }
                 }
             }
 
