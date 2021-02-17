@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Mime;
 using ImGuiNET;
 using Penumbra.Models;
 using Penumbra.Util;
@@ -377,6 +378,30 @@ namespace Penumbra.UI
                 ImGui.EndTabItem();
             }
 
+            private int HandleDefaultString( GamePath[] gamePaths, out int removeFolders )
+            {
+                removeFolders = 0;
+                var defaultIndex = gamePaths.IndexOf( p => ( ( string )p ).StartsWith( TextDefaultGamePath ) );
+                if( defaultIndex < 0 )
+                {
+                    return defaultIndex;
+                }
+
+                string path = gamePaths[ defaultIndex ];
+                if( path.Length == TextDefaultGamePath.Length )
+                {
+                    return defaultIndex;
+                }
+
+                if( path[ TextDefaultGamePath.Length ] != '-'
+                    || !int.TryParse( path.Substring( TextDefaultGamePath.Length + 1 ), out removeFolders ) )
+                {
+                    return -1;
+                }
+
+                return defaultIndex;
+            }
+
             private void HandleSelectedFilesButton( bool remove )
             {
                 if( _selectedOption == null )
@@ -392,7 +417,7 @@ namespace Penumbra.UI
                     return;
                 }
 
-                var defaultIndex = gamePaths.IndexOf( p => p == TextDefaultGamePath );
+                var defaultIndex = HandleDefaultString( gamePaths, out var removeFolders );
                 var changed      = false;
                 for( var i = 0; i < Mod.Mod.ModFiles.Count; ++i )
                 {
@@ -404,7 +429,7 @@ namespace Penumbra.UI
                     var relName = _fullFilenameList[ i ].relName;
                     if( defaultIndex >= 0 )
                     {
-                        gamePaths[ defaultIndex ] = new GamePath( relName );
+                        gamePaths[ defaultIndex ] = new GamePath( relName, removeFolders );
                     }
 
                     if( remove && option.OptionFiles.TryGetValue( relName, out var setPaths ) )
@@ -529,12 +554,13 @@ namespace Penumbra.UI
                             gamePaths.Remove( gamePath );
                             if( tmp.Length > 0 )
                             {
-                                gamePaths.Add( new GamePath(tmp) );
+                                gamePaths.Add( new GamePath( tmp ) );
                             }
-                            else if (gamePaths.Count == 0)
+                            else if( gamePaths.Count == 0 )
                             {
                                 optionFiles.Remove( fileName );
                             }
+
                             _selector.SaveCurrentMod();
                             _selector.ReloadCurrentMod();
                         }
