@@ -20,12 +20,18 @@ namespace Penumbra.UI
             private const string TooltipMoveUp       = "Move the selected mod up in priority";
             private const string TooltipDelete       = "Delete the selected mod";
             private const string TooltipAdd          = "Add an empty mod";
+            private const string TooltipHasConflicts = "The Mod conflicts with another active mod.";
+
+            private const string TooltipIsDefective =
+                "The Mod contains a '.meta' file from TexTools import. It probably will not work correctly.";
+
             private const string DialogDeleteMod     = "PenumbraDeleteMod";
             private const string ButtonYesDelete     = "Yes, delete it";
             private const string ButtonNoDelete      = "No, keep it";
             private const float  SelectorPanelWidth  = 240f;
             private const uint   DisabledModColor    = 0xFF666666;
             private const uint   ConflictingModColor = 0xFFAAAAFF;
+            private const uint   DefectiveModColor   = 0xFF4444FF;
 
             private static readonly Vector2 SelectorButtonSizes = new( 60, 0 );
             private static readonly string  ArrowUpString       = FontAwesomeIcon.ArrowUp.ToIconString();
@@ -219,15 +225,23 @@ namespace Penumbra.UI
                         continue;
                     }
 
-                    var changedColour = false;
+                    var    changedColour = false;
+                    string tooltip       = null;
                     if( !settings.Enabled )
                     {
                         ImGui.PushStyleColor( ImGuiCol.Text, DisabledModColor );
                         changedColour = true;
                     }
+                    else if( settings.Mod.ContainsMetaFile )
+                    {
+                        ImGui.PushStyleColor( ImGuiCol.Text, DefectiveModColor );
+                        tooltip       = TooltipIsDefective;
+                        changedColour = true;
+                    }
                     else if( settings.Mod.FileConflicts.Any() )
                     {
                         ImGui.PushStyleColor( ImGuiCol.Text, ConflictingModColor );
+                        tooltip       = TooltipHasConflicts;
                         changedColour = true;
                     }
 
@@ -239,6 +253,11 @@ namespace Penumbra.UI
 #else
                     var selected = ImGui.Selectable( modName, modIndex == _index );
 #endif
+
+                    if( tooltip != null && ImGui.IsItemHovered() )
+                    {
+                        ImGui.SetTooltip( tooltip );
+                    }
 
                     if( changedColour )
                     {

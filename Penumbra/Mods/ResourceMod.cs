@@ -16,6 +16,8 @@ namespace Penumbra.Mods
 
         public Dictionary< string, List< GamePath > > FileConflicts { get; } = new();
 
+        public bool ContainsMetaFile { get; private set; }
+
         public void RefreshModFiles()
         {
             if( ModBasePath == null )
@@ -25,12 +27,20 @@ namespace Penumbra.Mods
             }
 
             ModFiles.Clear();
+            ContainsMetaFile = false;
             // we don't care about any _files_ in the root dir, but any folders should be a game folder/file combo
             foreach( var dir in ModBasePath.EnumerateDirectories() )
             {
                 foreach( var file in dir.EnumerateFiles( "*.*", SearchOption.AllDirectories ) )
                 {
-                    ModFiles.Add( file );
+                    if( file.Extension.ToLowerInvariant() == ".meta" )
+                    {
+                        ContainsMetaFile = true;
+                    }
+                    else
+                    {
+                        ModFiles.Add( file );
+                    }
                 }
             }
         }
