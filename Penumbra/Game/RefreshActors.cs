@@ -13,7 +13,7 @@ namespace Penumbra.Game
         private const int RenderTaskOtherDelay  = 25;
         private const int ModelInvisibilityFlag = 0b10;
 
-        private static async void Redraw( Actor actor )
+        public static async void Redraw( Actor actor )
         {
             if( actor == null )
             {

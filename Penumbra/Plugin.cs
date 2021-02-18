@@ -29,6 +29,7 @@ namespace Penumbra
         public GameUtils GameUtils { get; set; }
 
         public string PluginDebugTitleStr { get; private set; }
+        public PlayerWatcher PlayerWatcher { get; set; }
 
         private WebServer _webServer;
 
@@ -39,7 +40,8 @@ namespace Penumbra
             Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             Configuration.Initialize( PluginInterface );
 
-            GameUtils = new GameUtils( PluginInterface );
+            GameUtils    = new GameUtils( PluginInterface );
+            PlayerWatcher = new PlayerWatcher( PluginInterface );
 
             ModManager = new ModManager( this );
             ModManager.DiscoverMods( Configuration.CurrentCollection );
@@ -94,6 +96,7 @@ namespace Penumbra
 
         public void Dispose()
         {
+            PlayerWatcher.Dispose();
             ModManager?.Dispose();
 
             PluginInterface.UiBuilder.OnBuildUi -= SettingsInterface.Draw;
