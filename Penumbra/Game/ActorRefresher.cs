@@ -43,11 +43,16 @@ namespace Penumbra.Game
 
         private void ChangeSettings( string name )
         {
-            _changedSettings = true;
+            if( _mods.CharacterSettings.CharacterConfigs.TryGetValue( name, out var settings ) && settings.Enabled )
+            {
+                _mods.ExchangeFileLists( settings.ResolvedFiles, settings.SwappedFiles );
+                _changedSettings = true;
+            }
         }
 
         private void RestoreSettings()
         {
+            _mods.RestoreDefaultFileLists();
             _changedSettings = false;
         }
 
@@ -242,27 +247,31 @@ namespace Penumbra.Game
 
         private void UnloadAll()
         {
-            foreach (var A in _pi.ClientState.Actors)
-                WriteInvisible(A.Address + RenderModeOffset);
+            foreach( var A in _pi.ClientState.Actors )
+            {
+                WriteInvisible( A.Address + RenderModeOffset );
+            }
         }
 
         private void RedrawAllWithoutSettings()
         {
-            foreach (var A in _pi.ClientState.Actors)
-                WriteVisible(A.Address + RenderModeOffset);
+            foreach( var A in _pi.ClientState.Actors )
+            {
+                WriteVisible( A.Address + RenderModeOffset );
+            }
         }
 
         public async void UnloadAtOnceRedrawWithSettings()
         {
             UnloadAll();
-            await Task.Delay(UnloadAllRedrawDelay);
-            RedrawAll(Redraw.RedrawWithSettings);
+            await Task.Delay( UnloadAllRedrawDelay );
+            RedrawAll( Redraw.RedrawWithSettings );
         }
 
         public async void UnloadAtOnceRedrawWithoutSettings()
         {
             UnloadAll();
-            await Task.Delay(UnloadAllRedrawDelay);
+            await Task.Delay( UnloadAllRedrawDelay );
             RedrawAllWithoutSettings();
         }
     }

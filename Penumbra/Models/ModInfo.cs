@@ -128,6 +128,49 @@ namespace Penumbra.Models
 
             return ret;
         }
+
+        public bool FixSpecificSetting( ModMeta meta, string name )
+        {
+            if( !meta.Groups.TryGetValue( name, out var group ) )
+            {
+                return Settings.Remove( name );
+            }
+
+            if( Settings.TryGetValue( name, out var oldSetting ) )
+            {
+                Settings[ name ] = group.SelectionType switch
+                {
+                    SelectType.Single => Math.Min( Math.Max( oldSetting, 0 ), group.Options.Count - 1 ),
+                    SelectType.Multi  => Math.Min( Math.Max( oldSetting, 0 ), ( 1 << group.Options.Count ) - 1 ),
+                    _                 => Settings[ group.GroupName ]
+                };
+                return oldSetting != Settings[ group.GroupName ];
+            }
+
+            Settings[ name ] = 0;
+            return true;
+        }
+
+        public bool FixInvalidSettings( ModMeta meta )
+        {
+            if( ( meta.Groups?.Count ?? 0 ) == 0 )
+            {
+                var ret = Settings != null;
+                Settings = new Dictionary< string, int >();
+                return ret;
+            }
+
+            var changed = Settings == null;
+            Settings ??= new Dictionary< string, int >();
+
+            if( ( meta.Groups?.Count ?? 0 ) == 0 )
+            {
+                return changed;
+            }
+
+            return Settings.Keys.ToArray().Union( meta.Groups.Keys )
+                .Aggregate( changed, ( current, name ) => current | FixSpecificSetting( meta, name ) );
+        }
     }
 
     public class ModInfo : ModSettings
@@ -139,46 +182,9 @@ namespace Penumbra.Models
         public ResourceMod Mod { get; set; }
 
         public bool FixSpecificSetting( string name )
-        {
-            if( !Mod.Meta.Groups.TryGetValue( name, out var group ) )
-            {
-                return Settings.Remove( name );
-            }
-
-            if( Settings.TryGetValue( name, out var oldSetting ) )
-            {
-                Settings[ name ] = group.SelectionType switch
-                {
-                    SelectType.Single => Math.Min( Math.Max(oldSetting, 0 ), group.Options.Count - 1 ),
-                    SelectType.Multi  => Math.Min( Math.Max(oldSetting, 0 ), ( 1 << group.Options.Count ) - 1 ),
-                    _                 => Settings[ group.GroupName ]
-                };
-                return oldSetting != Settings[ group.GroupName ];
-            }
-
-            Settings[ name ] = 0;
-            return true;
-        }
+            => FixSpecificSetting( Mod.Meta, name );
 
         public bool FixInvalidSettings()
-        {
-            if( ( Mod.Meta.Groups?.Count ?? 0 ) == 0 )
-            {
-                var ret = Settings != null;
-                Settings = new Dictionary< string, int >();
-                return ret;
-            }
-
-            var changed = Settings == null;
-            Settings ??= new Dictionary< string, int >();
-
-            if( ( Mod.Meta.Groups?.Count ?? 0 ) == 0 )
-            {
-                return changed;
-            }
-
-            return Settings.Keys.ToArray().Union( Mod.Meta.Groups.Keys )
-                .Aggregate( changed, ( current, name ) => current | FixSpecificSetting( name ) );
-        }
+            => FixInvalidSettings( Mod.Meta );
     }
 }

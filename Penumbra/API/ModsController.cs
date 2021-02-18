@@ -28,7 +28,7 @@ namespace Penumbra.API
         [Route( HttpVerbs.Get, "/files" )]
         public object CreateMod()
         {
-            return _plugin.ModManager.ResolvedFiles.ToDictionary(
+            return _plugin.ModManager.DefaultResolvedFiles.ToDictionary(
                 o => o.Key,
                 o => o.Value.FullName
             );

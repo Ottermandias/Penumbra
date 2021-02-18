@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Dalamud.Plugin;
@@ -18,46 +19,49 @@ namespace Penumbra.Mods
 
         public ModCollection( DirectoryInfo basePath ) => _basePath = basePath;
 
-        public void Load( bool invertOrder = false )
+        [Conditional( "DEBUG" )]
+        private void PrintDebugInfo()
         {
-            // find the collection json
-            var collectionPath = Path.Combine( _basePath.FullName, "collection.json" );
-            if( File.Exists( collectionPath ) )
+            foreach( var ms in ModSettings )
             {
-                try
-                {
-                    ModSettings = JsonConvert.DeserializeObject< List< ModInfo > >( File.ReadAllText( collectionPath ) );
-                    ModSettings = ModSettings.OrderBy( x => x.Priority ).ToList();
-                }
-                catch( Exception e )
-                {
-                    PluginLog.Error( $"failed to read log collection information, failed path: {collectionPath}, err: {e.Message}" );
-                }
+                PluginLog.Information( $"mod: {ms.FolderName} Enabled: {ms.Enabled} Priority: {ms.Priority}" );
+            }
+        }
+
+        private void ReadCollectionJson( string fileName )
+        {
+            var collectionPath = Path.Combine( _basePath.FullName, fileName );
+            if( !File.Exists( collectionPath ) )
+            {
+                return;
             }
 
-#if DEBUG
-            if( ModSettings != null )
+            try
             {
-                foreach( var ms in ModSettings )
-                {
-                    PluginLog.Information(
-                        "mod: {ModName} Enabled: {Enabled} Priority: {Priority}",
-                        ms.FolderName, ms.Enabled, ms.Priority
-                    );
-                }
+                ModSettings = JsonConvert.DeserializeObject< List< ModInfo > >( File.ReadAllText( collectionPath ) );
+                ModSettings = ModSettings.OrderBy( x => x.Priority ).ToList();
             }
-#endif
+            catch( Exception e )
+            {
+                PluginLog.Error( $"failed to read log collection information, failed path: {collectionPath}, err: {e.Message}" );
+            }
 
             ModSettings ??= new List< ModInfo >();
-            var foundMods = new List< string >();
+        }
 
+        private List< string > GatherMods()
+        {
+            var foundMods = new List< string >();
             foreach( var modDir in _basePath.EnumerateDirectories() )
             {
                 var metaFile = modDir.EnumerateFiles().FirstOrDefault( f => f.Name == "meta.json" );
 
                 if( metaFile == null )
                 {
+                    // Allow for folders collecting ttmps or similar without pumping errors outside of DEBUG.
+#if DEBUG
                     PluginLog.LogError( "mod meta is missing for resource mod: {ResourceModLocation}", modDir );
+#endif
                     continue;
                 }
 
@@ -74,25 +78,27 @@ namespace Penumbra.Mods
                     ModBasePath = modDir
                 };
 
-                var modEntry = FindOrCreateModSettings( mod );
+                FindOrCreateModSettings( mod );
                 foundMods.Add( modDir.Name );
                 mod.RefreshModFiles();
             }
 
-            // remove any mods from the collection we didn't find
-            ModSettings = ModSettings.Where(
-                x =>
-                    foundMods.Any(
-                        fm => string.Equals( x.FolderName, fm, StringComparison.InvariantCultureIgnoreCase )
-                    )
-            ).ToList();
+            return foundMods;
+        }
 
-            // if anything gets removed above, the priority ordering gets fucked, so we need to resort and reindex them otherwise BAD THINGS HAPPEN
-            ModSettings = ModSettings.OrderBy( x => x.Priority ).ToList();
-            var p = 0;
-            foreach( var modSetting in ModSettings )
+        public void Load( bool invertOrder = false )
+        {
+            ReadCollectionJson( "collection.json" );
+            PrintDebugInfo();
+            var foundMods = GatherMods();
+            // remove any mods from the collection we didn't find
+            if( ModSettings.RemoveAll( x => !foundMods
+                .Any( fm => string.Equals( x.FolderName, fm, StringComparison.InvariantCultureIgnoreCase ) ) ) > 0 )
             {
-                modSetting.Priority = p++;
+                // if anything gets removed above, the priority ordering gets fucked, so we need to resort and reindex them otherwise BAD THINGS HAPPEN
+                ModSettings.Sort( ( x, y ) => x.Priority - y.Priority );
+                var p = 0;
+                ModSettings.ForEach( ms => ms.Priority = p++ );
             }
 
             // reorder the resourcemods list so we can just directly iterate

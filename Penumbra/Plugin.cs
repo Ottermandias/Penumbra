@@ -1,5 +1,5 @@
+using System.IO;
 using System.Linq;
-using Dalamud.Game.ClientState.Actors.Types;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
 using EmbedIO;
@@ -46,9 +46,16 @@ namespace Penumbra
             PlayerWatcher = new PlayerWatcher( PluginInterface );
 
             ModManager = new ModManager( this );
+            ModManager.CharacterSettings.ReadAll( new DirectoryInfo(Configuration.CurrentCollection)  );
             ModManager.DiscoverMods( Configuration.CurrentCollection );
 
             ActorRefresher = new ActorRefresher( PluginInterface, ModManager );
+
+            foreach( var actor in ModManager.CharacterSettings.CharacterConfigs.Keys )
+            {
+                PlayerWatcher.AddPlayerToWatch( actor );
+            }
+            PlayerWatcher.ActorChanged += A => ActorRefresher.RedrawActor( A, Redraw.OnlyWithSettings );
 
             ResourceLoader = new ResourceLoader( this );
 
@@ -100,6 +107,7 @@ namespace Penumbra
 
         public void Dispose()
         {
+            PlayerWatcher.ActorChanged -= A => ActorRefresher.RedrawActor( A, Redraw.OnlyWithSettings );
             PlayerWatcher.Dispose();
             ModManager?.Dispose();
 

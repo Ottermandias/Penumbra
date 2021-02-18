@@ -208,7 +208,9 @@ namespace Penumbra.UI
                 DrawModsSelectorFilter();
 
                 // Inlay selector list
-                ImGui.BeginChild( LabelSelectorList, new Vector2( SelectorPanelWidth, -ImGui.GetFrameHeightWithSpacing() ), true );
+                var ret = ImGui.BeginChild( LabelSelectorList, new Vector2( SelectorPanelWidth, -ImGui.GetFrameHeightWithSpacing() ), true );
+                if( !ret )
+                    return;
 
                 for( var modIndex = 0; modIndex < Mods.ModSettings.Count; modIndex++ )
                 {

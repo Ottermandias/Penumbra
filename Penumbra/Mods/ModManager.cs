@@ -8,26 +8,205 @@ using Penumbra.Util;
 
 namespace Penumbra.Mods
 {
+    public class ResolvedFiles : Dictionary< GamePath, FileInfo >
+    { }
+
+    public class SwappedFiles : Dictionary< GamePath, GamePath >
+    { }
+
     public class ModManager : IDisposable
     {
-        private readonly Plugin                           _plugin;
-        public readonly  Dictionary< GamePath, FileInfo > ResolvedFiles = new();
-        public readonly  Dictionary< GamePath, GamePath > SwappedFiles  = new();
+        private readonly Plugin        _plugin;
+        private          DirectoryInfo _basePath;
 
+        public readonly ResolvedFiles DefaultResolvedFiles = new();
+        public readonly SwappedFiles  DefaultSwappedFiles  = new();
+
+        public readonly CharacterSettingList CharacterSettings = new();
+        public          ResolvedFiles        CurrentResolvedFiles;
+        public          SwappedFiles         CurrentSwappedFiles;
         public ModCollection Mods { get; set; }
 
-        private DirectoryInfo _basePath;
 
-        public ModManager( Plugin plugin ) => _plugin = plugin;
+        public ModManager( Plugin plugin )
+        {
+            _plugin = plugin;
+            RestoreDefaultFileLists();
+        }
+
+        public void ExchangeFileLists( ResolvedFiles resolved, SwappedFiles swapped )
+        {
+            CurrentResolvedFiles = resolved;
+            CurrentSwappedFiles  = swapped;
+        }
+
+        public void RestoreDefaultFileLists()
+            => ExchangeFileLists( DefaultResolvedFiles, DefaultSwappedFiles );
 
         public void DiscoverMods()
         {
-            if( _basePath == null )
+            if( _basePath != null )
+            {
+                DiscoverMods( _basePath );
+            }
+        }
+
+        public void DiscoverMods( string basePath )
+            => DiscoverMods( new DirectoryInfo( basePath ) );
+
+        public void DiscoverMods( DirectoryInfo basePath )
+        {
+            if( basePath == null || !basePath.Exists )
+            {
+                Mods = null;
+                return;
+            }
+
+            _basePath = basePath;
+            // FileSystemWatcherPasta();
+
+            Mods = new ModCollection( basePath );
+            Mods.Load();
+
+            CalculateEffectiveFileList();
+        }
+
+        public void CalculateEffectiveFileList()
+        {
+            var enumerator = Mods.GetOrderedAndEnabledModListWithSettings( _plugin.Configuration.InvertModListOrder );
+            if( CalculateEffectiveFileList( DefaultResolvedFiles, DefaultSwappedFiles,
+                enumerator.Select( p => ( p.Item1, p.Item2 as ModSettings ) ) ) )
+            {
+                _plugin.ModManager.Mods.Save();
+            }
+
+            _plugin.GameUtils.ReloadPlayerResources();
+            CharacterSettings.RenewFiles( Mods.ModSettings );
+        }
+
+        public static bool CalculateEffectiveFileList( ResolvedFiles resolvedFiles
+            , SwappedFiles swappedFiles, IEnumerable< (ResourceMod mod, ModSettings settings) > enabledMods )
+        {
+            var changedConfig = false;
+            resolvedFiles.Clear();
+            swappedFiles.Clear();
+
+            var registeredFiles = new Dictionary< GamePath, string >();
+            foreach( var (mod, settings) in enabledMods )
+            {
+                mod.FileConflicts?.Clear();
+                changedConfig |= ProcessModFiles( resolvedFiles, registeredFiles, mod, settings );
+                ProcessSwappedFiles( swappedFiles, registeredFiles, mod );
+            }
+
+            return changedConfig;
+        }
+
+        private static void ProcessSwappedFiles( SwappedFiles swappedFiles
+            , Dictionary< GamePath, string > registeredFiles, ResourceMod mod )
+        {
+            if( mod?.Meta?.FileSwaps == null )
             {
                 return;
             }
 
-            DiscoverMods( _basePath );
+            foreach( var swap in mod.Meta.FileSwaps )
+            {
+                // just assume people put not fucked paths in here lol
+                if( !swappedFiles.ContainsKey( swap.Value ) )
+                {
+                    swappedFiles[ swap.Key ]    = swap.Value;
+                    registeredFiles[ swap.Key ] = mod.Meta.Name;
+                }
+                else if( registeredFiles.TryGetValue( swap.Key, out var modName ) )
+                {
+                    mod.AddConflict( modName, swap.Key );
+                }
+            }
+        }
+
+        private static bool ProcessModFiles( ResolvedFiles resolvedFiles
+            , Dictionary< GamePath, string > registeredFiles, ResourceMod mod, ModSettings settings )
+        {
+            var changedConfig = false;
+            foreach( var file in mod.ModFiles )
+            {
+                RelPath relativeFilePath = new( file, mod.ModBasePath );
+                var (configChanged, gamePaths) =  mod.Meta.GetFilesForConfig( relativeFilePath, settings );
+                changedConfig                  |= configChanged;
+
+                AddFiles( gamePaths, resolvedFiles, file, registeredFiles, mod );
+            }
+
+            return changedConfig;
+        }
+
+        private static void AddFiles( IEnumerable< GamePath > gamePaths, ResolvedFiles resolvedFiles
+            , FileInfo file, Dictionary< GamePath, string > registeredFiles, ResourceMod mod )
+        {
+            foreach( var gamePath in gamePaths )
+            {
+                if( !resolvedFiles.ContainsKey( gamePath ) )
+                {
+                    resolvedFiles[ gamePath ]   = file;
+                    registeredFiles[ gamePath ] = mod.Meta.Name;
+                }
+                else if( registeredFiles.TryGetValue( gamePath, out var modName ) )
+                {
+                    mod.AddConflict( modName, gamePath );
+                }
+            }
+        }
+
+        public void ChangeModPriority( ModInfo info, bool up = false )
+        {
+            Mods.ReorderMod( info, up );
+            CalculateEffectiveFileList();
+        }
+
+        public void DeleteMod( ResourceMod mod )
+        {
+            if( mod?.ModBasePath?.Exists ?? false )
+            {
+                try
+                {
+                    Directory.Delete( mod.ModBasePath.FullName, true );
+                }
+                catch( Exception e )
+                {
+                    PluginLog.Error( $"Could not delete the mod {mod.ModBasePath.Name}:\n{e}" );
+                }
+            }
+
+            DiscoverMods();
+        }
+
+        public FileInfo GetCandidateForGameFile( GamePath gameResourcePath )
+        {
+            var val = CurrentResolvedFiles.TryGetValue( gameResourcePath, out var candidate );
+            if( !val )
+            {
+                return null;
+            }
+
+            if( candidate.FullName.Length >= 260 || !candidate.Exists )
+            {
+                return null;
+            }
+
+            return candidate;
+        }
+
+        public GamePath GetSwappedFilePath( GamePath gameResourcePath )
+            => CurrentSwappedFiles.TryGetValue( gameResourcePath, out var swappedPath ) ? swappedPath : GamePath.GenerateUnchecked( null );
+
+        public string ResolveSwappedOrReplacementFilePath( GamePath gameResourcePath )
+            => GetCandidateForGameFile( gameResourcePath )?.FullName ?? GetSwappedFilePath( gameResourcePath );
+
+
+        public void Dispose()
+        {
+            // _fileSystemWatcher?.Dispose();
         }
 
 //         private void FileSystemWatcherOnChanged( object sender, FileSystemEventArgs e )
@@ -57,205 +236,23 @@ namespace Penumbra.Mods
 //             _plugin.GameUtils.ReloadPlayerResources();
 //         }
 
-        public void DiscoverMods( string basePath )
-            => DiscoverMods( new DirectoryInfo( basePath ) );
-
-        public void DiscoverMods( DirectoryInfo basePath )
-        {
-            if( basePath == null || !basePath.Exists )
-            {
-                Mods = null;
-                return;
-            }
-
-            _basePath = basePath;
-
-            // haha spaghet
-            // _fileSystemWatcher?.Dispose();
-            // _fileSystemWatcher = new FileSystemWatcher( _basePath.FullName )
-            // {
-            //     NotifyFilter = NotifyFilters.LastWrite |
-            //                    NotifyFilters.FileName |
-            //                    NotifyFilters.DirectoryName,
-            //     IncludeSubdirectories = true,
-            //     EnableRaisingEvents = true
-            // };
-            //
-            // _fileSystemWatcher.Changed += FileSystemWatcherOnChanged;
-            // _fileSystemWatcher.Created += FileSystemWatcherOnChanged;
-            // _fileSystemWatcher.Deleted += FileSystemWatcherOnChanged;
-            // _fileSystemWatcher.Renamed += FileSystemWatcherOnChanged;
-
-            Mods = new ModCollection( basePath );
-            Mods.Load();
-            Mods.Save();
-
-            CalculateEffectiveFileList();
-        }
-
-        public void CalculateEffectiveFileList()
-        {
-            ResolvedFiles.Clear();
-            SwappedFiles.Clear();
-
-            var registeredFiles = new Dictionary< GamePath, string >();
-
-            foreach( var (mod, settings) in Mods.GetOrderedAndEnabledModListWithSettings( _plugin.Configuration.InvertModListOrder ) )
-            {
-                mod.FileConflicts?.Clear();
-                ProcessModFiles( registeredFiles, mod, settings );
-                ProcessSwappedFiles( registeredFiles, mod, settings );
-            }
-
-            _plugin.GameUtils.ReloadPlayerResources();
-        }
-
-        private void ProcessSwappedFiles( Dictionary< GamePath, string > registeredFiles, ResourceMod mod, ModInfo settings )
-        {
-            if( mod?.Meta?.FileSwaps == null )
-            {
-                return;
-            }
-
-            foreach( var swap in mod.Meta.FileSwaps )
-            {
-                // just assume people put not fucked paths in here lol
-                if( !SwappedFiles.ContainsKey( swap.Value ) )
-                {
-                    SwappedFiles[ swap.Key ]    = swap.Value;
-                    registeredFiles[ swap.Key ] = mod.Meta.Name;
-                }
-                else if( registeredFiles.TryGetValue( swap.Key, out var modName ) )
-                {
-                    mod.AddConflict( modName, swap.Key );
-                }
-            }
-        }
-
-        private void ProcessModFiles( Dictionary< GamePath, string > registeredFiles, ResourceMod mod, ModInfo settings )
-        {
-            if( settings.FixInvalidSettings() )
-            {
-                _plugin.ModManager.Mods.Save();
-            }
-
-            foreach( var file in mod.ModFiles )
-            {
-                RelPath relativeFilePath = new( file, mod.ModBasePath );
-                var     doNotAdd         = false;
-                foreach( var group in mod.Meta.Groups.Values.Where( group => group.Options.Count > 0) )
-                {
-                    var setting = settings.Settings[ group.GroupName ];
-                    HashSet< GamePath > paths;
-                    switch( group.SelectionType )
-                    {
-                        case SelectType.Single:
-                            if( group.Options[ setting ].OptionFiles.TryGetValue( relativeFilePath, out paths ) )
-                            {
-                                doNotAdd |= AddFiles( paths, file, registeredFiles, mod );
-                            }
-                            else
-                            {
-                                doNotAdd |= group.Options.Where( ( o, i ) => i != setting )
-                                    .Any( option => option.OptionFiles.ContainsKey( relativeFilePath ) );
-                            }
-
-                            break;
-                        case SelectType.Multi:
-                            for( var i = 0; i < group.Options.Count; ++i )
-                            {
-                                if( ( setting & ( 1 << i ) ) != 0 )
-                                {
-                                    if( group.Options[ i ].OptionFiles.TryGetValue( relativeFilePath, out paths ) )
-                                    {
-                                        doNotAdd |= AddFiles( paths, file, registeredFiles, mod );
-                                    }
-                                }
-                                else
-                                {
-                                    doNotAdd |= group.Options[ i ].OptionFiles.ContainsKey( relativeFilePath );
-                                }
-                            }
-
-                            break;
-                    }
-                }
-
-                if( !doNotAdd )
-                {
-                    AddFiles( new GamePath[] { new( relativeFilePath ) }, file, registeredFiles, mod );
-                }
-            }
-        }
-
-        private bool AddFiles( IEnumerable< GamePath > gamePaths, FileInfo file, Dictionary< GamePath, string > registeredFiles,
-            ResourceMod mod )
-        {
-            foreach( var gamePath in gamePaths )
-            {
-                if( !ResolvedFiles.ContainsKey( gamePath ) )
-                {
-                    ResolvedFiles[ gamePath ]   = file;
-                    registeredFiles[ gamePath ] = mod.Meta.Name;
-                }
-                else if( registeredFiles.TryGetValue( gamePath, out var modName ) )
-                {
-                    mod.AddConflict( modName, gamePath );
-                }
-            }
-
-            return true;
-        }
-
-        public void ChangeModPriority( ModInfo info, bool up = false )
-        {
-            Mods.ReorderMod( info, up );
-            CalculateEffectiveFileList();
-        }
-
-        public void DeleteMod( ResourceMod mod )
-        {
-            if( mod?.ModBasePath?.Exists ?? false )
-            {
-                try
-                {
-                    Directory.Delete( mod.ModBasePath.FullName, true );
-                }
-                catch( Exception e )
-                {
-                    PluginLog.Error( $"Could not delete the mod {mod.ModBasePath.Name}:\n{e}" );
-                }
-            }
-
-            DiscoverMods();
-        }
-
-        public FileInfo GetCandidateForGameFile( GamePath gameResourcePath )
-        {
-            var val = ResolvedFiles.TryGetValue( gameResourcePath, out var candidate );
-            if( !val )
-            {
-                return null;
-            }
-
-            if( candidate.FullName.Length >= 260 || !candidate.Exists )
-            {
-                return null;
-            }
-
-            return candidate;
-        }
-
-        public GamePath GetSwappedFilePath( GamePath gameResourcePath )
-            => SwappedFiles.TryGetValue( gameResourcePath, out var swappedPath ) ? swappedPath : GamePath.GenerateUnchecked( null );
-
-        public string ResolveSwappedOrReplacementFilePath( GamePath gameResourcePath )
-            => GetCandidateForGameFile( gameResourcePath )?.FullName ?? GetSwappedFilePath( gameResourcePath );
-
-
-        public void Dispose()
-        {
-            // _fileSystemWatcher?.Dispose();
-        }
+//      public void FileSystemWatcherPasta()
+//      {
+//          haha spaghet
+//          _fileSystemWatcher?.Dispose();
+//          _fileSystemWatcher = new FileSystemWatcher( _basePath.FullName )
+//          {
+//              NotifyFilter = NotifyFilters.LastWrite |
+//                             NotifyFilters.FileName |
+//                             NotifyFilters.DirectoryName,
+//              IncludeSubdirectories = true,
+//              EnableRaisingEvents = true
+//          };
+//     
+//          _fileSystemWatcher.Changed += FileSystemWatcherOnChanged;
+//          _fileSystemWatcher.Created += FileSystemWatcherOnChanged;
+//          _fileSystemWatcher.Deleted += FileSystemWatcherOnChanged;
+//          _fileSystemWatcher.Renamed += FileSystemWatcherOnChanged;
+//      }
     }
 }

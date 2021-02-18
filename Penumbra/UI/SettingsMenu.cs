@@ -16,17 +16,19 @@ namespace Penumbra.UI
             private readonly TabSettings       _settingsTab;
             private readonly TabImport         _importTab;
             private readonly TabBrowser        _browserTab;
+            private readonly TabCharacters     _characterTab;
             public readonly  TabInstalled      InstalledTab;
             public readonly  TabEffective      EffectiveTab;
 
             public SettingsMenu( SettingsInterface ui )
             {
-                _base        = ui;
-                _settingsTab = new TabSettings( _base );
-                _importTab   = new TabImport( _base );
-                _browserTab  = new TabBrowser();
-                InstalledTab = new TabInstalled( _base );
-                EffectiveTab = new TabEffective( _base );
+                _base         = ui;
+                _settingsTab  = new TabSettings( _base );
+                _importTab    = new TabImport( _base );
+                _browserTab   = new TabBrowser();
+                _characterTab = new TabCharacters( _base );
+                InstalledTab  = new TabInstalled( _base );
+                EffectiveTab  = new TabEffective( _base );
             }
 
 #if DEBUG
@@ -63,6 +65,7 @@ namespace Penumbra.UI
                 {
                     _browserTab.Draw();
                     InstalledTab.Draw();
+                    _characterTab.Draw();
 
                     if( _base._plugin.Configuration.ShowAdvanced )
                     {

@@ -26,8 +26,8 @@ namespace Penumbra.UI
             {
                 if( advanced )
                 {
-                    _maxGamePath = TextSizePadding + ( _mods.ResolvedFiles.Count > 0
-                        ? _mods.ResolvedFiles.Keys.Max( f => ImGui.CalcTextSize( f ).X )
+                    _maxGamePath = TextSizePadding + ( _mods.DefaultResolvedFiles.Count > 0
+                        ? _mods.DefaultResolvedFiles.Keys.Max( f => ImGui.CalcTextSize( f ).X )
                         : 0f );
                 }
                 else
@@ -56,7 +56,7 @@ namespace Penumbra.UI
 
                 if( ImGui.ListBoxHeader( "##effective_files", AutoFillSize ) )
                 {
-                    foreach( var file in _mods.ResolvedFiles )
+                    foreach( var file in _mods.DefaultResolvedFiles )
                     {
                         DrawFileLine( file.Value, file.Key );
                     }
