@@ -2,12 +2,160 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
+using Penumbra.Game;
+using Penumbra.Util;
+using Swan;
 
 namespace Penumbra.Importer
 {
+    public class MetaManipulation
+    { }
+
+    public class EqpManipulation
+    { }
+
     public class TexToolsMeta
     {
+        public class Info
+        {
+            private const string Pt   = @"(?'PrimaryType'[a-z]*)";                                              // language=regex
+            private const string Pp   = @"(?'PrimaryPrefix'[a-z])";                                             // language=regex
+            private const string Pi   = @"(?'PrimaryId'\d{4})";                                                 // language=regex
+            private const string Pir  = @"\k'PrimaryId'";                                                       // language=regex
+            private const string St   = @"(?'SecondaryType'[a-z]*)";                                            // language=regex
+            private const string Sp   = @"(?'SecondaryPrefix'[a-z])";                                           // language=regex
+            private const string Si   = @"(?'SecondaryId'\d{4})";                                               // language=regex
+            private const string File = @"\k'PrimaryPrefix'\k'PrimaryId'(\k'SecondaryPrefix'\k'SecondaryId')?"; // language=regex
+            private const string Slot = @"(_(?'Slot'[a-z]{3}))?";                                               // language=regex
+            private const string Ext  = @"\.meta";
+
+            private static readonly Regex HousingMeta = new( $"bgcommon/hou/{Pt}/general/{Pi}/{Pir}{Ext}" );
+            private static readonly Regex CharaMeta   = new( $"chara/{Pt}/{Pp}{Pi}(/obj/{St}/{Sp}{Si})?/{File}{Slot}{Ext}" );
+
+            public readonly  ObjectType PrimaryType;
+            public readonly  BodySlot   SecondaryType;
+            public readonly  ushort     PrimaryId;
+            public readonly  ushort     SecondaryId;
+            private readonly byte       _slot;
+
+            public bool IsAccessory => PrimaryType == ObjectType.Accessory;
+            public bool HasSecondary => SecondaryType != BodySlot.Unknown;
+
+            public EquipSlot EquipSlot
+            {
+                get
+                {
+                    if( PrimaryType != ObjectType.Equipment && PrimaryType != ObjectType.Accessory )
+                    {
+                        throw new InvalidCastException();
+                    }
+
+                    return ( EquipSlot )_slot;
+                }
+            }
+
+            public Customization Customization
+            {
+                get
+                {
+                    if( PrimaryType != ObjectType.Character )
+                    {
+                        throw new InvalidCastException();
+                    }
+
+                    return ( Customization )_slot;
+                }
+            }
+
+
+            private static bool ValidType( ObjectType type )
+            {
+                return type switch
+                {
+                    ObjectType.Accessory     => true,
+                    ObjectType.Character     => true,
+                    ObjectType.Equipment     => true,
+                    ObjectType.DemiHuman     => true,
+                    ObjectType.Housing       => true,
+                    ObjectType.Monster       => true,
+                    ObjectType.Icon          => false,
+                    ObjectType.Font          => false,
+                    ObjectType.Interface     => false,
+                    ObjectType.LoadingScreen => false,
+                    ObjectType.Map           => false,
+                    ObjectType.Vfx           => false,
+                    ObjectType.Unknown       => false,
+                    ObjectType.Weapon        => false,
+                    ObjectType.World         => false,
+                    _                        => false
+                };
+            }
+
+            public Info( string fileName )
+            {
+                PrimaryType   = GamePathParser.PathToObjectType( new GamePath( fileName ) );
+                PrimaryId     = 0;
+                SecondaryType = BodySlot.Unknown;
+                SecondaryId   = 0;
+                _slot         = 0;
+                if( !ValidType( PrimaryType ) )
+                {
+                    PrimaryType = ObjectType.Unknown;
+                    return;
+                }
+
+                if( PrimaryType == ObjectType.Housing )
+                {
+                    var housingMatch = HousingMeta.Match( fileName );
+                    if( housingMatch.Success )
+                    {
+                        PrimaryId = ushort.Parse( housingMatch.Groups[ "PrimaryId" ].Value );
+                    }
+
+                    return;
+                }
+
+                var match = CharaMeta.Match( fileName );
+                if( !match.Success )
+                {
+                    return;
+                }
+
+                PrimaryId = ushort.Parse( match.Groups[ "PrimaryId" ].Value );
+                if( !match.Groups[ "Slot" ].Success )
+                {
+                    return;
+                }
+
+                switch( PrimaryType )
+                {
+                    case ObjectType.Accessory:
+                        if( GamePathParser.SlotToEquip.TryGetValue( match.Groups[ "Slot" ].Value, out var tmpCust ) )
+                        {
+                            _slot = ( byte )tmpCust;
+                        }
+
+                        break;
+                    case ObjectType.Equipment:
+                    case ObjectType.Character:
+                        if( GamePathParser.SlotToCustomization.TryGetValue( match.Groups[ "Slot" ].Value, out var tmpEquip ) )
+                        {
+                            _slot = ( byte )tmpEquip;
+                        }
+
+                        break;
+                }
+
+                if( match.Groups[ "SecondaryType" ].Success
+                    && GamePathParser.SlotToBodyslot.TryGetValue( match.Groups[ "SecondaryType" ].Value, out SecondaryType ) )
+                {
+                    SecondaryId = ushort.Parse( match.Groups[ "SecondaryId" ].Value );
+                }
+            }
+        }
+
         private enum MetaDataType : uint
         {
             Invalid = 0,
@@ -18,10 +166,12 @@ namespace Penumbra.Importer
             Gmp     = 5
         };
 
-        public readonly uint              Version;
-        public readonly string            FilePath;
+        public readonly uint   Version;
+        public readonly string FilePath;
+
+        public readonly Info              MetaInfo;
         public readonly List< ImcEntry >  ImcEntries;
-        public readonly List< EqpEntry >  EqpEntries;
+        public readonly EqpEntry?         EqpEntries;
         public readonly List< EqdpEntry > EqdpEntries;
         public readonly List< EstEntry >  EstEntries;
         public readonly GmpEntry?         GmpEntries;
@@ -98,9 +248,10 @@ namespace Penumbra.Importer
             public readonly byte EntryData;
 
             [JsonIgnore]
-            public bool Bit1 => (EntryData & 0b01) == 0b01;
+            public bool Bit1 => ( EntryData & 0b01 ) == 0b01;
+
             [JsonIgnore]
-            public bool Bit2 => (EntryData & 0b10) == 0b10;
+            public bool Bit2 => ( EntryData & 0b10 ) == 0b10;
 
             public EqdpEntry( byte[] data )
             {
@@ -154,6 +305,7 @@ namespace Penumbra.Importer
             using var reader = new BinaryReader( new MemoryStream( data ) );
             Version  = reader.ReadUInt32();
             FilePath = ReadNullTerminated( reader );
+            MetaInfo = new Info( FilePath );
             var numHeaders  = reader.ReadUInt32();
             var headerSize  = reader.ReadUInt32();
             var headerStart = reader.ReadUInt32();
@@ -183,12 +335,14 @@ namespace Penumbra.Importer
             }
 
             ImcEntries  = DeserializeEntry( ReadEntry( MetaDataType.Imc ), b => new ImcEntry( b ), ImcEntry.Size );
-            EqpEntries  = DeserializeEntry( ReadEntry( MetaDataType.Eqp ), b => new EqpEntry( b ), EqpEntry.Size );
             EqdpEntries = DeserializeEntry( ReadEntry( MetaDataType.Eqdp ), b => new EqdpEntry( b ), EqdpEntry.Size );
             EstEntries  = DeserializeEntry( ReadEntry( MetaDataType.Est ), b => new EstEntry( b ), EstEntry.Size );
 
             var gmpEntry = ReadEntry( MetaDataType.Gmp );
             GmpEntries = gmpEntry == null ? null : new GmpEntry( gmpEntry );
+
+            var eqpEntry = ReadEntry( MetaDataType.Eqp );
+            EqpEntries = gmpEntry == null ? null : new EqpEntry( eqpEntry );
         }
     }
 }
